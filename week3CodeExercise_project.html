@@ -1,0 +1,4298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Garden of Algorithms</title>
+
+    <!-- Approved UI library -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Approved icon library -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Pyodide -->
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: #07130d;
+            color: #e5f3e9;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        .glass {
+            background: rgba(12, 35, 23, 0.92);
+            border: 1px solid rgba(87, 160, 108, 0.25);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+        }
+
+        .garden-grid {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(55px, 1fr));
+            gap: 8px;
+        }
+
+        .plot {
+            aspect-ratio: 1 / 1;
+            min-height: 75px;
+            border: 2px solid #244e32;
+            background: #102619;
+            border-radius: 12px;
+            transition: 0.15s;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .plot:hover {
+            border-color: #65a765;
+            transform: translateY(-2px);
+        }
+
+        .plot.selected {
+            border-color: #facc15;
+            box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.2);
+        }
+
+        .plot.ready {
+            border-color: #22c55e;
+            box-shadow: 0 0 14px rgba(34, 197, 94, 0.25);
+        }
+
+        .plot.empty {
+            color: #54705c;
+        }
+
+        .plant-symbol {
+            font-size: 27px;
+            font-weight: bold;
+        }
+
+        .small-scroll {
+            max-height: 230px;
+            overflow-y: auto;
+        }
+
+        .code-editor {
+            min-height: 430px;
+            white-space: pre-wrap;
+            overflow: auto;
+            font-family: Consolas, "Courier New", monospace;
+            font-size: 13px;
+            line-height: 1.55;
+            background: #050b08;
+            color: #c8e6d0;
+            padding: 16px;
+            border-radius: 10px;
+        }
+
+        .console {
+            min-height: 130px;
+            max-height: 260px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-family: Consolas, "Courier New", monospace;
+            background: #030805;
+            color: #9ee7ae;
+            padding: 14px;
+            border-radius: 10px;
+        }
+
+        .game-button {
+            border: 1px solid #315f3d;
+            background: #17351f;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            transition: 0.15s;
+        }
+
+        .game-button:hover {
+            background: #24502e;
+            border-color: #5b9e67;
+        }
+
+        .game-button.primary {
+            background: #27643a;
+            border-color: #4b965c;
+        }
+
+        .game-button.warning {
+            background: #66511c;
+            border-color: #a7862c;
+        }
+
+        .game-button.danger {
+            background: #602b2b;
+            border-color: #914444;
+        }
+
+        .resource-card {
+            border: 1px solid #264a30;
+            background: #0e2116;
+            border-radius: 10px;
+            padding: 10px;
+        }
+
+        .status-box {
+            border-radius: 10px;
+            border: 1px solid #315d3c;
+            background: #0b1b11;
+            padding: 10px;
+        }
+
+        @media (max-width: 1100px) {
+            .main-layout {
+                grid-template-columns: 1fr !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="max-w-[1600px] mx-auto p-4">
+
+    <!-- HEADER -->
+    <header class="glass rounded-2xl p-5 mb-4">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+
+            <div>
+                <div class="flex items-center gap-3">
+                    <div class="bg-green-700 p-3 rounded-xl">
+                        <i data-lucide="sprout"></i>
+                    </div>
+
+                    <div>
+                        <h1 class="text-2xl font-bold">
+                            Garden of Algorithms
+                        </h1>
+
+                        <p class="text-sm text-green-300">
+                            One playable game integrating Data Structures and Algorithms
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex gap-3 items-center">
+
+                <div class="text-right">
+                    <div class="text-xs text-gray-400">
+                        VERSION
+                    </div>
+
+                    <div id="app-version"
+                         class="font-bold text-green-300">
+                        0.3.0
+                    </div>
+                </div>
+
+                <div class="text-right">
+                    <div class="text-xs text-gray-400">
+                        DAY
+                    </div>
+
+                    <div id="day-counter"
+                         class="font-bold text-yellow-300">
+                        1
+                    </div>
+                </div>
+
+                <div class="text-right">
+                    <div class="text-xs text-gray-400">
+                        SCORE
+                    </div>
+
+                    <div id="score-counter"
+                         class="font-bold text-green-300">
+                        0
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </header>
+
+
+    <!-- MAIN -->
+    <div class="main-layout grid grid-cols-[240px_1fr_300px] gap-4">
+
+        <!-- LEFT -->
+        <aside class="space-y-4">
+
+            <section class="glass rounded-2xl p-4">
+
+                <h2 class="font-bold mb-3 flex items-center gap-2">
+                    <i data-lucide="database" size="18"></i>
+                    Resources
+                </h2>
+
+                <div class="space-y-2">
+
+                    <div class="resource-card flex justify-between">
+                        <span>Water</span>
+                        <strong id="water-value">200</strong>
+                    </div>
+
+                    <div class="resource-card flex justify-between">
+                        <span>Seeds</span>
+                        <strong id="seeds-value">90</strong>
+                    </div>
+
+                    <div class="resource-card flex justify-between">
+                        <span>Energy</span>
+                        <strong id="energy-value">110</strong>
+                    </div>
+
+                    <div class="resource-card flex justify-between">
+                        <span>Hope</span>
+                        <strong id="hope-value">80</strong>
+                    </div>
+
+                    <div class="resource-card flex justify-between">
+                        <span>Coins</span>
+                        <strong id="coins-value">990</strong>
+                    </div>
+
+                </div>
+            </section>
+
+
+            <section class="glass rounded-2xl p-4">
+
+                <h2 class="font-bold mb-3 flex items-center gap-2">
+                    <i data-lucide="package" size="18"></i>
+                    Seed Bank
+                </h2>
+
+                <div id="inventory-list"
+                     class="small-scroll text-sm text-gray-300">
+                    Empty
+                </div>
+
+            </section>
+
+
+            <section class="glass rounded-2xl p-4">
+
+                <h2 class="font-bold mb-3">
+                    Plant
+                </h2>
+
+                <select id="crop-selector"
+                        class="w-full bg-gray-900 border border-green-800 rounded-lg p-2 text-sm">
+                </select>
+
+                <div id="crop-info"
+                     class="mt-3 text-xs text-gray-400">
+                </div>
+
+            </section>
+
+        </aside>
+
+
+        <!-- CENTER -->
+        <main>
+
+            <!-- GAME -->
+            <section id="game-view"
+                     class="glass rounded-2xl p-5">
+
+                <div class="flex justify-between items-center mb-4">
+
+                    <div>
+                        <h2 class="text-xl font-bold">
+                            Garden
+                        </h2>
+
+                        <p class="text-xs text-gray-400">
+                            Select a plot, then use the actions below.
+                        </p>
+                    </div>
+
+                    <div id="selected-plot"
+                         class="text-sm text-yellow-300">
+                        No plot selected
+                    </div>
+
+                </div>
+
+
+                <!-- ACTIONS -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+
+                    <button class="game-button primary"
+                            onclick="plantSelected()">
+                        <i data-lucide="sprout" size="15"></i>
+                        Plant
+                    </button>
+
+                    <button class="game-button"
+                            onclick="waterSelected()">
+                        <i data-lucide="droplets" size="15"></i>
+                        Water
+                    </button>
+
+                    <button class="game-button"
+                            onclick="harvestSelected()">
+                        <i data-lucide="wheat" size="15"></i>
+                        Harvest
+                    </button>
+
+                    <button class="game-button warning"
+                            onclick="advanceDay()">
+                        <i data-lucide="sun" size="15"></i>
+                        Advance Day
+                    </button>
+
+                </div>
+
+
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+
+                    <button class="game-button"
+                            onclick="processWeather()">
+                        <i data-lucide="cloud-rain" size="15"></i>
+                        Process Weather
+                    </button>
+
+                    <button class="game-button"
+                            onclick="addWeather()">
+                        <i data-lucide="cloud-plus" size="15"></i>
+                        Add Weather
+                    </button>
+
+                    <button class="game-button danger"
+                            onclick="undoAction()">
+                        <i data-lucide="undo-2" size="15"></i>
+                        Undo
+                    </button>
+
+                    <button class="game-button"
+                            onclick="showGardenAnalysis()">
+                        <i data-lucide="activity" size="15"></i>
+                        Analyze
+                    </button>
+
+                </div>
+
+
+                <!-- WEATHER -->
+                <div class="flex flex-col md:flex-row gap-2 mb-4">
+
+                    <select id="weather-selector"
+                            class="flex-1 bg-gray-900 border border-green-800 rounded-lg p-2 text-sm">
+
+                        <option>Rain</option>
+                        <option>Heavy Rain</option>
+                        <option>Heat Wave</option>
+                        <option>Drought</option>
+                        <option>Flood</option>
+                        <option>Typhoon</option>
+
+                    </select>
+
+                    <input id="search-input"
+                           type="text"
+                           placeholder="Search plant..."
+                           class="flex-1 bg-gray-900 border border-green-800 rounded-lg p-2 text-sm">
+
+                    <button class="game-button"
+                            onclick="searchPlant()">
+                        Search
+                    </button>
+
+                </div>
+
+
+                <!-- GRID -->
+                <div id="garden-grid"
+                     class="garden-grid">
+                </div>
+
+
+                <!-- GAME STATUS -->
+                <div class="status-box mt-4">
+
+                    <div class="text-xs text-gray-400 mb-1">
+                        GAME STATUS
+                    </div>
+
+                    <div id="game-message"
+                         class="text-sm text-green-300">
+                        Loading Python game engine...
+                    </div>
+
+                </div>
+
+
+                <!-- ALGORITHM ACTIONS -->
+                <div class="mt-4">
+
+                    <h3 class="font-bold mb-2">
+                        Algorithm Lab
+                    </h3>
+
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+
+                        <button class="game-button"
+                                onclick="runTreeTraversal()">
+                            Tree
+                        </button>
+
+                        <button class="game-button"
+                                onclick="runSortAlgorithms()">
+                            Sort
+                        </button>
+
+                        <button class="game-button"
+                                onclick="runBFS()">
+                            BFS
+                        </button>
+
+                        <button class="game-button"
+                                onclick="runDFS()">
+                            DFS
+                        </button>
+
+                        <button class="game-button"
+                                onclick="runDijkstra()">
+                            Dijkstra
+                        </button>
+
+                        <button class="game-button"
+                                onclick="runGreedy()">
+                            Greedy
+                        </button>
+
+                        <button class="game-button"
+                                onclick="runDP()">
+                            Dynamic Programming
+                        </button>
+
+                        <button class="game-button"
+                                onclick="runDivideConquer()">
+                            Divide & Conquer
+                        </button>
+
+                    </div>
+
+                </div>
+
+
+                <!-- ALGORITHM OUTPUT -->
+                <div class="mt-4">
+
+                    <div class="text-xs text-gray-400 mb-2">
+                        ALGORITHM OUTPUT
+                    </div>
+
+                    <div id="algorithm-output"
+                         class="console">
+                        Waiting for an action...
+                    </div>
+
+                </div>
+
+            </section>
+
+
+            <!-- CODE -->
+            <section class="glass rounded-2xl p-5 mt-4">
+
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
+
+                    <h2 class="font-bold">
+                        Python Topic Explorer
+                    </h2>
+
+                    <div class="flex gap-2">
+
+                        <select id="topic-selector"
+                                class="bg-gray-900 border border-green-800 rounded-lg p-2 text-sm">
+                        </select>
+
+                        <button class="game-button primary"
+                                onclick="runTopicCode()">
+                            Run Topic
+                        </button>
+
+                    </div>
+
+                </div>
+
+
+                <div id="code-editor"
+                     class="code-editor">
+                </div>
+
+            </section>
+
+
+            <!-- CONSOLE -->
+            <section class="glass rounded-2xl p-5 mt-4">
+
+                <h2 class="font-bold mb-2">
+                    Python Console
+                </h2>
+
+                <div id="python-console"
+                     class="console">
+                    Starting...
+                </div>
+
+            </section>
+
+        </main>
+
+
+        <!-- RIGHT -->
+        <aside class="space-y-4">
+
+            <!-- CLIMATE QUEUE -->
+            <section class="glass rounded-2xl p-4">
+
+                <h2 class="font-bold flex items-center gap-2 mb-3">
+                    <i data-lucide="list-ordered" size="18"></i>
+                    Climate Queue
+                </h2>
+
+                <p class="text-xs text-gray-400 mb-3">
+                    FIFO - First In, First Out
+                </p>
+
+                <div id="climate-queue"
+                     class="space-y-2 text-sm">
+                </div>
+
+            </section>
+
+
+            <!-- STACK -->
+            <section class="glass rounded-2xl p-4">
+
+                <h2 class="font-bold flex items-center gap-2 mb-3">
+                    <i data-lucide="layers" size="18"></i>
+                    Action History
+                </h2>
+
+                <p class="text-xs text-gray-400 mb-3">
+                    LIFO - Last In, First Out
+                </p>
+
+                <div id="action-stack"
+                     class="small-scroll space-y-2 text-sm">
+                </div>
+
+            </section>
+
+
+            <!-- GAME LOG -->
+            <section class="glass rounded-2xl p-4">
+
+                <h2 class="font-bold mb-3">
+                    Game Log
+                </h2>
+
+                <div id="game-log"
+                     class="small-scroll text-xs text-gray-400 space-y-2">
+                </div>
+
+            </section>
+
+        </aside>
+
+    </div>
+
+</div>
+
+
+<script>
+
+/* ============================================================
+   JAVASCRIPT UI LAYER
+   Python is the authoritative game engine.
+   ============================================================ */
+
+const APP_VERSION = "0.3.0";
+
+let pyodideInstance = null;
+let selectedPlot = null;
+let gameReady = false;
+
+
+/* ============================================================
+   CROP DATA FOR UI
+   ============================================================ */
+
+const CROPS = {
+    "Rose": {
+        icon: "[R]",
+        category: "Flower",
+        seedCost: 12,
+        water: 8,
+        energy: 2,
+        growth: 2,
+        harvest: 24,
+        hope: 4
+    },
+
+    "Sampaguita": {
+        icon: "[S]",
+        category: "Flower",
+        seedCost: 10,
+        water: 7,
+        energy: 2,
+        growth: 2,
+        harvest: 20,
+        hope: 5
+    },
+
+    "Basil": {
+        icon: "[B]",
+        category: "Herb",
+        seedCost: 8,
+        water: 5,
+        energy: 1,
+        growth: 1,
+        harvest: 16,
+        hope: 3
+    },
+
+    "Tomato": {
+        icon: "[T]",
+        category: "Vegetable",
+        seedCost: 14,
+        water: 10,
+        energy: 3,
+        growth: 3,
+        harvest: 30,
+        hope: 6
+    },
+
+    "Carrot": {
+        icon: "[C]",
+        category: "Vegetable",
+        seedCost: 9,
+        water: 6,
+        energy: 2,
+        growth: 2,
+        harvest: 22,
+        hope: 4
+    },
+
+    "Lettuce": {
+        icon: "[L]",
+        category: "Vegetable",
+        seedCost: 7,
+        water: 4,
+        energy: 1,
+        growth: 1,
+        harvest: 14,
+        hope: 3
+    }
+};
+
+
+/* ============================================================
+   TOPIC CODE
+   ============================================================ */
+
+const TOPICS = {
+
+    "Topic 1 - Stack": `
+# Topic 1: Stack
+# LIFO - Last In, First Out
+
+print("Current Action History:")
+print(game.stack.describe())
+
+print()
+print("The most recent action is on top of the stack.")
+`,
+
+    "Topic 2 - Queue": `
+# Topic 2: Queue
+# FIFO - First In, First Out
+
+print("Current Climate Queue:")
+print(game.climate.to_list())
+
+print()
+print("The first weather event entered is processed first.")
+`,
+
+    "Topic 3 - Arrays": `
+# Topic 3: Static/Dynamic Arrays and 2D Lists
+
+print("Dynamic Array size:", game.plots.size)
+print("Dynamic Array capacity:", game.plots.capacity)
+
+print()
+print("Garden Map:")
+for row in game.garden_map:
+    print(row)
+
+print()
+print("This 5x5 map is a 2D list.")
+`,
+
+    "Topic 4 - Trees": `
+# Topic 4: Hierarchical Trees and Traversals
+
+print("PREORDER:")
+print(game.tree.preorder())
+
+print()
+print("INORDER:")
+print(game.tree.inorder())
+
+print()
+print("POSTORDER:")
+print(game.tree.postorder())
+`,
+
+    "Topic 5 - BST": `
+# Topic 5: Binary Search Tree
+
+print("Harvest values stored in BST:")
+print(game.harvest_bst.inorder())
+
+print()
+print("BST search for 24:")
+print(game.harvest_bst.search(24))
+`,
+
+    "Topic 6 - Hash Table": `
+# Topic 6: Hash Tables, Collisions and Rehashing
+
+print("Inventory:")
+print(game.inventory.items())
+
+print()
+print("Hash Table Capacity:", game.inventory.capacity)
+print("Stored Items:", game.inventory.size)
+print("Collisions:", game.inventory.collisions)
+print("Rehashes:", game.inventory.rehashes)
+`,
+
+    "Topic 7 - Graphs": `
+# Topic 7: Graphs
+
+print("Graph nodes:", game.graph.nodes)
+print("Graph edges:", game.graph.edge_count)
+
+print()
+print("BFS from plot 0:")
+print(game.graph.bfs(0))
+
+print()
+print("DFS from plot 0:")
+print(game.graph.dfs(0))
+`,
+
+    "Topic 8 - Sorting": `
+# Topic 8: Sorting Algorithms
+
+values = [24, 10, 30, 16, 22, 14]
+
+print("Original:", values)
+print("Bubble:", bubble_sort(values))
+print("Selection:", selection_sort(values))
+print("Insertion:", insertion_sort(values))
+print("Quick:", quick_sort(values))
+print("Merge:", merge_sort(values))
+`,
+
+    "Topic 9 - Searching": `
+# Topic 9: Searching Algorithms
+
+names = sorted(game.crops.keys())
+
+print("Available plants:")
+print(names)
+
+print()
+print("Linear Search for Basil:")
+print(linear_search(names, "Basil"))
+
+print()
+print("Binary Search for Basil:")
+print(binary_search(names, "Basil"))
+`,
+
+    "Topic 10 - Dijkstra and Greedy": `
+# Topic 10: Dijkstra and Greedy
+
+target = 24
+
+path, cost = game.graph.dijkstra(0, target)
+
+print("Dijkstra path from 0 to 24:")
+print(path)
+
+print("Cost:", cost)
+
+print()
+print("Greedy planting plan:")
+print(game.greedy_plan())
+`,
+
+    "Topic 11 - Dynamic Programming": `
+# Topic 11: Dynamic Programming and Divide-and-Conquer
+
+print("Optimal planting plan using Dynamic Programming:")
+print(game.dynamic_plan())
+
+print()
+print("Divide-and-Conquer total of harvest values:")
+print(divide_and_conquer_sum(game.harvest_values))
+`,
+
+    "Topic 12 - Resource Storage": `
+# Topic 12: Resource Storage and Seed Bank
+
+print("Water:", game.water)
+print("Seeds:", game.seeds)
+print("Energy:", game.energy)
+print("Hope:", game.hope)
+print("Coins:", game.coins)
+
+print()
+print("Seed Bank / Inventory:")
+print(game.inventory.items())
+`
+};
+
+
+/* ============================================================
+   PYTHON GAME ENGINE
+   ============================================================ */
+
+const PYTHON_GAME_CODE = String.raw`
+
+import json
+import copy
+import math
+
+
+# ============================================================
+# TOPIC 3 - DYNAMIC ARRAY
+# ============================================================
+
+class DynamicArray:
+
+    def __init__(self):
+        self.capacity = 4
+        self.size = 0
+        self.data = [None] * self.capacity
+
+    def append(self, value):
+
+        if self.size >= self.capacity:
+            self.capacity *= 2
+
+            new_data = [None] * self.capacity
+
+            for i in range(self.size):
+                new_data[i] = self.data[i]
+
+            self.data = new_data
+
+        self.data[self.size] = value
+        self.size += 1
+
+    def get(self, index):
+
+        if index < 0 or index >= self.size:
+            return None
+
+        return self.data[index]
+
+    def set(self, index, value):
+
+        if index < 0 or index >= self.size:
+            return False
+
+        self.data[index] = value
+        return True
+
+    def remove(self, index):
+
+        if index < 0 or index >= self.size:
+            return None
+
+        value = self.data[index]
+
+        for i in range(index, self.size - 1):
+            self.data[i] = self.data[i + 1]
+
+        self.data[self.size - 1] = None
+        self.size -= 1
+
+        return value
+
+
+# ============================================================
+# TOPIC 3 - FIXED ARRAY
+# ============================================================
+
+class FixedArray:
+
+    def __init__(self, size):
+        self.data = [None] * size
+
+    def set(self, index, value):
+
+        if 0 <= index < len(self.data):
+            self.data[index] = value
+            return True
+
+        return False
+
+    def get(self, index):
+
+        if 0 <= index < len(self.data):
+            return self.data[index]
+
+        return None
+
+
+# ============================================================
+# TOPIC 1 - STACK
+# ============================================================
+
+class ActionHistoryStack:
+
+    def __init__(self):
+        self.stack = []
+
+    def push_action(self, action_string, snapshot=None):
+
+        self.stack.append({
+            "label": action_string,
+            "snapshot": snapshot
+        })
+
+        try:
+            pushAction(action_string)
+        except:
+            pass
+
+    def pop_action(self):
+
+        if len(self.stack) == 0:
+            return None
+
+        return self.stack.pop()
+
+    def peek(self):
+
+        if len(self.stack) == 0:
+            return None
+
+        return self.stack[-1]
+
+    def is_empty(self):
+        return len(self.stack) == 0
+
+    def describe(self):
+
+        return [
+            item["label"]
+            for item in reversed(self.stack)
+        ]
+
+
+# ============================================================
+# TOPIC 2 - QUEUE
+# ============================================================
+
+class ClimateQueue:
+
+    def __init__(self):
+
+        from collections import deque
+
+        self.queue = deque()
+
+    def add_challenge(self, event):
+
+        self.queue.append(event)
+
+    def process_hazard(self):
+
+        if len(self.queue) == 0:
+            return None
+
+        return self.queue.popleft()
+
+    def peek(self):
+
+        if len(self.queue) == 0:
+            return None
+
+        return self.queue[0]
+
+    def to_list(self):
+
+        return list(self.queue)
+
+
+# ============================================================
+# TOPIC 4 - TREE
+# ============================================================
+
+class TreeNode:
+
+    def __init__(self, name):
+
+        self.name = name
+        self.children = []
+
+
+class PlantHierarchy:
+
+    def __init__(self):
+
+        self.root = TreeNode("Garden")
+
+        flowers = TreeNode("Flower")
+        herbs = TreeNode("Herb")
+        vegetables = TreeNode("Vegetable")
+
+        flowers.children = [
+            TreeNode("Rose"),
+            TreeNode("Sampaguita")
+        ]
+
+        herbs.children = [
+            TreeNode("Basil")
+        ]
+
+        vegetables.children = [
+            TreeNode("Tomato"),
+            TreeNode("Carrot"),
+            TreeNode("Lettuce")
+        ]
+
+        self.root.children = [
+            flowers,
+            herbs,
+            vegetables
+        ]
+
+    def preorder(self):
+
+        result = []
+
+        def visit(node):
+
+            result.append(node.name)
+
+            for child in node.children:
+                visit(child)
+
+        visit(self.root)
+
+        return result
+
+    def inorder(self):
+
+        result = []
+
+        def visit(node):
+
+            children = node.children
+
+            if len(children) == 0:
+                result.append(node.name)
+                return
+
+            middle = len(children) // 2
+
+            for child in children[:middle]:
+                visit(child)
+
+            result.append(node.name)
+
+            for child in children[middle:]:
+                visit(child)
+
+        visit(self.root)
+
+        return result
+
+    def postorder(self):
+
+        result = []
+
+        def visit(node):
+
+            for child in node.children:
+                visit(child)
+
+            result.append(node.name)
+
+        visit(self.root)
+
+        return result
+
+
+# ============================================================
+# TOPIC 5 - BINARY SEARCH TREE
+# ============================================================
+
+class BSTNode:
+
+    def __init__(self, key):
+
+        self.key = key
+        self.count = 1
+        self.left = None
+        self.right = None
+
+
+class HarvestBST:
+
+    def __init__(self):
+
+        self.root = None
+
+    def insert(self, key):
+
+        def add(node, key):
+
+            if node is None:
+                return BSTNode(key)
+
+            if key < node.key:
+                node.left = add(node.left, key)
+
+            elif key > node.key:
+                node.right = add(node.right, key)
+
+            else:
+                node.count += 1
+
+            return node
+
+        self.root = add(self.root, key)
+
+    def search(self, key):
+
+        node = self.root
+
+        while node is not None:
+
+            if key == node.key:
+                return True
+
+            if key < node.key:
+                node = node.left
+            else:
+                node = node.right
+
+        return False
+
+    def inorder(self):
+
+        result = []
+
+        def visit(node):
+
+            if node is None:
+                return
+
+            visit(node.left)
+
+            for _ in range(node.count):
+                result.append(node.key)
+
+            visit(node.right)
+
+        visit(self.root)
+
+        return result
+
+    def delete(self, key):
+
+        def minimum(node):
+
+            current = node
+
+            while current.left is not None:
+                current = current.left
+
+            return current
+
+        def remove(node, key):
+
+            if node is None:
+                return None
+
+            if key < node.key:
+                node.left = remove(node.left, key)
+
+            elif key > node.key:
+                node.right = remove(node.right, key)
+
+            else:
+
+                if node.count > 1:
+                    node.count -= 1
+                    return node
+
+                if node.left is None:
+                    return node.right
+
+                if node.right is None:
+                    return node.left
+
+                successor = minimum(node.right)
+
+                node.key = successor.key
+                node.count = successor.count
+
+                successor.count = 1
+
+                node.right = remove(
+                    node.right,
+                    successor.key
+                )
+
+            return node
+
+        self.root = remove(self.root, key)
+
+
+# ============================================================
+# TOPIC 6 - HASH TABLE
+# ============================================================
+
+class HashTable:
+
+    def __init__(self, capacity=5):
+
+        self.capacity = capacity
+        self.size = 0
+        self.table = [None] * capacity
+
+        self.collisions = 0
+        self.rehashes = 0
+
+    def _hash(self, key):
+
+        total = 0
+
+        for char in str(key):
+            total = (total * 31 + ord(char)) % self.capacity
+
+        return total
+
+    def _find_index(self, key):
+
+        start = self._hash(key)
+        index = start
+
+        while True:
+
+            item = self.table[index]
+
+            if item is None:
+                return None
+
+            if item[0] == key:
+                return index
+
+            index = (index + 1) % self.capacity
+
+            if index == start:
+                return None
+
+    def put(self, key, value):
+
+        if (self.size + 1) / self.capacity > 0.65:
+            self._rehash()
+
+        index = self._hash(key)
+
+        while self.table[index] is not None:
+
+            if self.table[index][0] == key:
+                self.table[index] = (key, value)
+                return
+
+            self.collisions += 1
+            index = (index + 1) % self.capacity
+
+        self.table[index] = (key, value)
+        self.size += 1
+
+    def get(self, key, default=None):
+
+        index = self._find_index(key)
+
+        if index is None:
+            return default
+
+        return self.table[index][1]
+
+    def delete(self, key):
+
+        index = self._find_index(key)
+
+        if index is None:
+            return False
+
+        self.table[index] = None
+        self.size -= 1
+
+        old_items = self.items()
+
+        self.table = [None] * self.capacity
+        self.size = 0
+
+        for k, v in old_items:
+            self.put(k, v)
+
+        return True
+
+    def _rehash(self):
+
+        old_items = self.items()
+
+        self.capacity *= 2
+        self.table = [None] * self.capacity
+        self.size = 0
+        self.rehashes += 1
+
+        for key, value in old_items:
+            self.put(key, value)
+
+    def items(self):
+
+        return [
+            item
+            for item in self.table
+            if item is not None
+        ]
+
+
+# ============================================================
+# TOPIC 7 - GRAPH
+# ============================================================
+
+class GardenGraph:
+
+    def __init__(self, rows=5, cols=5):
+
+        self.rows = rows
+        self.cols = cols
+        self.nodes = rows * cols
+
+        self.adj = {
+            i: []
+            for i in range(self.nodes)
+        }
+
+        self.matrix = [
+            [0 for _ in range(self.nodes)]
+            for _ in range(self.nodes)
+        ]
+
+        self.edge_count = 0
+
+        self._build()
+
+    def _build(self):
+
+        for row in range(self.rows):
+
+            for col in range(self.cols):
+
+                current = row * self.cols + col
+
+                directions = [
+                    (0, 1),
+                    (1, 0),
+                    (0, -1),
+                    (-1, 0)
+                ]
+
+                for dr, dc in directions:
+
+                    nr = row + dr
+                    nc = col + dc
+
+                    if (
+                        0 <= nr < self.rows
+                        and 0 <= nc < self.cols
+                    ):
+
+                        neighbor = nr * self.cols + nc
+
+                        if neighbor not in [
+                            x[0]
+                            for x in self.adj[current]
+                        ]:
+
+                            weight = 1
+
+                            if (current + neighbor) % 7 == 0:
+                                weight = 2
+
+                            self.adj[current].append(
+                                (neighbor, weight)
+                            )
+
+                            self.matrix[current][neighbor] = weight
+
+                            self.edge_count += 1
+
+    def bfs(self, start):
+
+        visited = set()
+        order = []
+
+        queue = [start]
+
+        visited.add(start)
+
+        while queue:
+
+            node = queue.pop(0)
+
+            order.append(node)
+
+            for neighbor, _ in self.adj[node]:
+
+                if neighbor not in visited:
+
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+
+        return order
+
+    def dfs(self, start):
+
+        visited = set()
+        order = []
+
+        def visit(node):
+
+            visited.add(node)
+            order.append(node)
+
+            for neighbor, _ in self.adj[node]:
+
+                if neighbor not in visited:
+                    visit(neighbor)
+
+        visit(start)
+
+        return order
+
+    def dijkstra(self, start, target):
+
+        distances = [
+            math.inf
+            for _ in range(self.nodes)
+        ]
+
+        previous = [
+            None
+            for _ in range(self.nodes)
+        ]
+
+        visited = set()
+
+        distances[start] = 0
+
+        for _ in range(self.nodes):
+
+            current = None
+            best = math.inf
+
+            for node in range(self.nodes):
+
+                if node not in visited and distances[node] < best:
+
+                    best = distances[node]
+                    current = node
+
+            if current is None:
+                break
+
+            visited.add(current)
+
+            if current == target:
+                break
+
+            for neighbor, weight in self.adj[current]:
+
+                new_distance = (
+                    distances[current] + weight
+                )
+
+                if new_distance < distances[neighbor]:
+
+                    distances[neighbor] = new_distance
+                    previous[neighbor] = current
+
+        path = []
+
+        current = target
+
+        while current is not None:
+
+            path.append(current)
+            current = previous[current]
+
+        path.reverse()
+
+        if not path or path[0] != start:
+            return [], math.inf
+
+        return path, distances[target]
+
+
+# ============================================================
+# TOPIC 8 - SORTING
+# ============================================================
+
+def bubble_sort(values):
+
+    arr = list(values)
+
+    for i in range(len(arr)):
+
+        for j in range(0, len(arr) - i - 1):
+
+            if arr[j] > arr[j + 1]:
+
+                arr[j], arr[j + 1] = (
+                    arr[j + 1],
+                    arr[j]
+                )
+
+    return arr
+
+
+def selection_sort(values):
+
+    arr = list(values)
+
+    for i in range(len(arr)):
+
+        minimum = i
+
+        for j in range(i + 1, len(arr)):
+
+            if arr[j] < arr[minimum]:
+                minimum = j
+
+        arr[i], arr[minimum] = (
+            arr[minimum],
+            arr[i]
+        )
+
+    return arr
+
+
+def insertion_sort(values):
+
+    arr = list(values)
+
+    for i in range(1, len(arr)):
+
+        key = arr[i]
+        j = i - 1
+
+        while j >= 0 and arr[j] > key:
+
+            arr[j + 1] = arr[j]
+            j -= 1
+
+        arr[j + 1] = key
+
+    return arr
+
+
+def quick_sort(values):
+
+    if len(values) <= 1:
+        return list(values)
+
+    pivot = values[len(values) // 2]
+
+    left = [
+        x for x in values
+        if x < pivot
+    ]
+
+    middle = [
+        x for x in values
+        if x == pivot
+    ]
+
+    right = [
+        x for x in values
+        if x > pivot
+    ]
+
+    return (
+        quick_sort(left)
+        + middle
+        + quick_sort(right)
+    )
+
+
+def merge_sort(values):
+
+    if len(values) <= 1:
+        return list(values)
+
+    middle = len(values) // 2
+
+    left = merge_sort(values[:middle])
+    right = merge_sort(values[middle:])
+
+    result = []
+
+    i = 0
+    j = 0
+
+    while i < len(left) and j < len(right):
+
+        if left[i] <= right[j]:
+
+            result.append(left[i])
+            i += 1
+
+        else:
+
+            result.append(right[j])
+            j += 1
+
+    result.extend(left[i:])
+    result.extend(right[j:])
+
+    return result
+
+
+# ============================================================
+# TOPIC 9 - SEARCHING
+# ============================================================
+
+def linear_search(values, target):
+
+    for i, value in enumerate(values):
+
+        if value == target:
+            return i
+
+    return -1
+
+
+def binary_search(values, target):
+
+    left = 0
+    right = len(values) - 1
+
+    while left <= right:
+
+        middle = (left + right) // 2
+
+        if values[middle] == target:
+            return middle
+
+        if values[middle] < target:
+            left = middle + 1
+
+        else:
+            right = middle - 1
+
+    return -1
+
+
+# ============================================================
+# TOPIC 11 - DIVIDE AND CONQUER
+# ============================================================
+
+def divide_and_conquer_sum(values):
+
+    if len(values) == 0:
+        return 0
+
+    if len(values) == 1:
+        return values[0]
+
+    middle = len(values) // 2
+
+    left = divide_and_conquer_sum(
+        values[:middle]
+    )
+
+    right = divide_and_conquer_sum(
+        values[middle:]
+    )
+
+    return left + right
+
+
+# ============================================================
+# GAME DATA
+# ============================================================
+
+CROPS = {
+
+    "Rose": {
+        "category": "Flower",
+        "seed_cost": 12,
+        "water": 8,
+        "energy": 2,
+        "growth": 2,
+        "harvest": 24,
+        "hope": 4
+    },
+
+    "Sampaguita": {
+        "category": "Flower",
+        "seed_cost": 10,
+        "water": 7,
+        "energy": 2,
+        "growth": 2,
+        "harvest": 20,
+        "hope": 5
+    },
+
+    "Basil": {
+        "category": "Herb",
+        "seed_cost": 8,
+        "water": 5,
+        "energy": 1,
+        "growth": 1,
+        "harvest": 16,
+        "hope": 3
+    },
+
+    "Tomato": {
+        "category": "Vegetable",
+        "seed_cost": 14,
+        "water": 10,
+        "energy": 3,
+        "growth": 3,
+        "harvest": 30,
+        "hope": 6
+    },
+
+    "Carrot": {
+        "category": "Vegetable",
+        "seed_cost": 9,
+        "water": 6,
+        "energy": 2,
+        "growth": 2,
+        "harvest": 22,
+        "hope": 4
+    },
+
+    "Lettuce": {
+        "category": "Vegetable",
+        "seed_cost": 7,
+        "water": 4,
+        "energy": 1,
+        "growth": 1,
+        "harvest": 14,
+        "hope": 3
+    }
+}
+
+
+# ============================================================
+# MAIN GAME
+# ============================================================
+
+class GardenGame:
+
+    def __init__(self):
+
+        self.day = 1
+        self.score = 0
+
+        self.water = 200
+        self.seeds = 90
+        self.energy = 110
+        self.hope = 80
+        self.coins = 990
+
+        self.crops = CROPS
+
+        self.plots = DynamicArray()
+
+        for _ in range(25):
+            self.plots.append(None)
+
+        self.fixed_zones = FixedArray(5)
+
+        self.fixed_zones.set(0, "North")
+        self.fixed_zones.set(1, "East")
+        self.fixed_zones.set(2, "South")
+        self.fixed_zones.set(3, "West")
+        self.fixed_zones.set(4, "Center")
+
+        self.garden_map = [
+            [None for _ in range(5)]
+            for _ in range(5)
+        ]
+
+        self.stack = ActionHistoryStack()
+
+        self.climate = ClimateQueue()
+
+        self.tree = PlantHierarchy()
+
+        self.harvest_bst = HarvestBST()
+
+        self.inventory = HashTable()
+
+        self.graph = GardenGraph()
+
+        self.harvest_values = []
+
+        self.log = []
+
+        self.algorithm_report = (
+            "Garden initialized."
+        )
+
+        self._add_default_weather()
+
+
+    # ========================================================
+    # SNAPSHOT / UNDO
+    # ========================================================
+
+    def _snapshot(self):
+
+        plots = [
+            copy.deepcopy(
+                self.plots.get(i)
+            )
+            for i in range(25)
+        ]
+
+        return {
+            "day": self.day,
+            "score": self.score,
+
+            "water": self.water,
+            "seeds": self.seeds,
+            "energy": self.energy,
+            "hope": self.hope,
+            "coins": self.coins,
+
+            "plots": plots,
+
+            "garden_map": copy.deepcopy(
+                self.garden_map
+            ),
+
+            "climate": self.climate.to_list(),
+
+            "inventory": dict(
+                self.inventory.items()
+            ),
+
+            "harvest_values": list(
+                self.harvest_values
+            ),
+
+            "log": list(self.log)
+        }
+
+
+    def _restore(self, snapshot):
+
+        self.day = snapshot["day"]
+        self.score = snapshot["score"]
+
+        self.water = snapshot["water"]
+        self.seeds = snapshot["seeds"]
+        self.energy = snapshot["energy"]
+        self.hope = snapshot["hope"]
+        self.coins = snapshot["coins"]
+
+        self.plots = DynamicArray()
+
+        for plant in snapshot["plots"]:
+            self.plots.append(
+                copy.deepcopy(plant)
+            )
+
+        self.garden_map = copy.deepcopy(
+            snapshot["garden_map"]
+        )
+
+        self.climate = ClimateQueue()
+
+        for event in snapshot["climate"]:
+            self.climate.add_challenge(event)
+
+        self.inventory = HashTable()
+
+        for key, value in snapshot["inventory"].items():
+            self.inventory.put(
+                key,
+                value
+            )
+
+        self.harvest_values = list(
+            snapshot["harvest_values"]
+        )
+
+        self.harvest_bst = HarvestBST()
+
+        for value in self.harvest_values:
+            self.harvest_bst.insert(value)
+
+        self.log = list(
+            snapshot["log"]
+        )
+
+
+    def _record(self, label):
+
+        self.stack.push_action(
+            label,
+            self._snapshot()
+        )
+
+
+    def undo(self):
+
+        item = self.stack.pop_action()
+
+        if item is None:
+
+            self.algorithm_report = (
+                "Nothing to undo."
+            )
+
+            return False
+
+        snapshot = item["snapshot"]
+
+        self._restore(snapshot)
+
+        self.algorithm_report = (
+            "Undo successful: "
+            + item["label"]
+        )
+
+        self.log.append(
+            "Undo: " + item["label"]
+        )
+
+        return True
+
+
+    # ========================================================
+    # WEATHER
+    # ========================================================
+
+    def _add_default_weather(self):
+
+        events = [
+            "Rain",
+            "Heat Wave",
+            "Drought",
+            "Heavy Rain"
+        ]
+
+        for event in events:
+            self.climate.add_challenge(event)
+
+
+    def add_weather(self, event):
+
+        valid = [
+            "Rain",
+            "Heavy Rain",
+            "Heat Wave",
+            "Drought",
+            "Flood",
+            "Typhoon"
+        ]
+
+        if event not in valid:
+
+            self.algorithm_report = (
+                "Invalid weather event."
+            )
+
+            return False
+
+        self._record(
+            "Add weather: " + event
+        )
+
+        self.climate.add_challenge(event)
+
+        self.algorithm_report = (
+            "Added " + event
+            + " to the Climate Queue."
+        )
+
+        self.log.append(
+            "Added weather: " + event
+        )
+
+        return True
+
+
+    def process_weather(self):
+
+        if len(self.climate.queue) == 0:
+
+            self.algorithm_report = (
+                "Climate Queue is empty."
+            )
+
+            return False
+
+        self._record(
+            "Process weather"
+        )
+
+        event = self.climate.process_hazard()
+
+        if event == "Rain":
+
+            self.water += 25
+
+            self.algorithm_report = (
+                "Rain processed: +25 water."
+            )
+
+        elif event == "Heavy Rain":
+
+            self.water += 40
+
+            self.algorithm_report = (
+                "Heavy Rain processed: +40 water."
+            )
+
+            for i in range(25):
+
+                plant = self.plots.get(i)
+
+                if plant is not None:
+                    plant["health"] = min(
+                        100,
+                        plant["health"] + 2
+                    )
+
+        elif event == "Heat Wave":
+
+            self.water = max(
+                0,
+                self.water - 20
+            )
+
+            for i in range(25):
+
+                plant = self.plots.get(i)
+
+                if plant is not None:
+
+                    plant["health"] = max(
+                        0,
+                        plant["health"] - 5
+                    )
+
+            self.algorithm_report = (
+                "Heat Wave processed: "
+                "-20 water and plant health reduced."
+            )
+
+        elif event == "Drought":
+
+            self.water = max(
+                0,
+                self.water - 35
+            )
+
+            for i in range(25):
+
+                plant = self.plots.get(i)
+
+                if plant is not None:
+
+                    plant["health"] = max(
+                        0,
+                        plant["health"] - 10
+                    )
+
+            self.algorithm_report = (
+                "Drought processed: "
+                "-35 water and plant health reduced."
+            )
+
+        elif event == "Flood":
+
+            self.water += 15
+
+            for i in range(25):
+
+                plant = self.plots.get(i)
+
+                if plant is not None:
+
+                    plant["health"] = max(
+                        0,
+                        plant["health"] - 3
+                    )
+
+            self.algorithm_report = (
+                "Flood processed: "
+                "+15 water but plants lost some health."
+            )
+
+        elif event == "Typhoon":
+
+            self.water = max(
+                0,
+                self.water - 15
+            )
+
+            self.energy = max(
+                0,
+                self.energy - 10
+            )
+
+            for i in range(25):
+
+                plant = self.plots.get(i)
+
+                if plant is not None:
+
+                    plant["health"] = max(
+                        0,
+                        plant["health"] - 10
+                    )
+
+            self.algorithm_report = (
+                "Typhoon processed: "
+                "water, energy and plant health reduced."
+            )
+
+        self.log.append(
+            "Processed weather: " + event
+        )
+
+        return True
+
+
+    # ========================================================
+    # PLANT
+    # ========================================================
+
+    def plant(self, position, crop_name):
+
+        position = int(position)
+
+        if position < 0 or position >= 25:
+
+            self.algorithm_report = (
+                "Invalid garden position."
+            )
+
+            return False
+
+        if crop_name not in self.crops:
+
+            self.algorithm_report = (
+                "Invalid plant."
+            )
+
+            return False
+
+        if self.plots.get(position) is not None:
+
+            self.algorithm_report = (
+                "This plot is already occupied."
+            )
+
+            return False
+
+        crop = self.crops[crop_name]
+
+        if self.seeds <= 0:
+
+            self.algorithm_report = (
+                "You do not have enough seeds."
+            )
+
+            return False
+
+        if self.coins < crop["seed_cost"]:
+
+            self.algorithm_report = (
+                "Not enough coins to plant "
+                + crop_name
+                + "."
+            )
+
+            return False
+
+        self._record(
+            "Plant "
+            + crop_name
+            + " at plot "
+            + str(position)
+        )
+
+        plant = {
+            "name": crop_name,
+            "planted_day": self.day,
+            "growth": 0,
+            "growth_days": crop["growth"],
+            "health": 100,
+            "watered": False
+        }
+
+        self.plots.set(
+            position,
+            plant
+        )
+
+        row = position // 5
+        col = position % 5
+
+        self.garden_map[row][col] = crop_name
+
+        self.seeds -= 1
+        self.coins -= crop["seed_cost"]
+
+        self.score += 2
+
+        self.algorithm_report = (
+            "Planted "
+            + crop_name
+            + " at plot "
+            + str(position)
+            + "."
+        )
+
+        self.log.append(
+            "Planted "
+            + crop_name
+            + " at plot "
+            + str(position)
+        )
+
+        return True
+
+
+    # ========================================================
+    # WATER
+    # ========================================================
+
+    def water_plot(self, position):
+
+        position = int(position)
+
+        plant = self.plots.get(position)
+
+        if plant is None:
+
+            self.algorithm_report = (
+                "There is no plant on this plot."
+            )
+
+            self.log.append(
+                "Water failed: empty plot."
+            )
+
+            return False
+
+        crop = self.crops[
+            plant["name"]
+        ]
+
+        if plant["watered"]:
+
+            self.algorithm_report = (
+                plant["name"]
+                + " has already been watered today."
+            )
+
+            return False
+
+        water_cost = crop["water"]
+        energy_cost = crop["energy"]
+
+        if self.water < water_cost:
+
+            self.algorithm_report = (
+                "Not enough water. "
+                "Required: "
+                + str(water_cost)
+                + ", Available: "
+                + str(self.water)
+            )
+
+            return False
+
+        if self.energy < energy_cost:
+
+            self.algorithm_report = (
+                "Not enough energy. "
+                "Required: "
+                + str(energy_cost)
+                + ", Available: "
+                + str(self.energy)
+            )
+
+            return False
+
+        self._record(
+            "Water "
+            + plant["name"]
+            + " at plot "
+            + str(position)
+        )
+
+        self.water -= water_cost
+        self.energy -= energy_cost
+
+        plant["watered"] = True
+
+        plant["health"] = min(
+            100,
+            plant["health"] + 10
+        )
+
+        self.score += 1
+
+        self.algorithm_report = (
+            "Watered "
+            + plant["name"]
+            + ". -"
+            + str(water_cost)
+            + " water, -"
+            + str(energy_cost)
+            + " energy."
+        )
+
+        self.log.append(
+            "Watered "
+            + plant["name"]
+            + " at plot "
+            + str(position)
+        )
+
+        return True
+
+
+    # ========================================================
+    # HARVEST
+    # ========================================================
+
+    def harvest_plot(self, position):
+
+        position = int(position)
+
+        plant = self.plots.get(position)
+
+        if plant is None:
+
+            self.algorithm_report = (
+                "There is no plant on this plot."
+            )
+
+            self.log.append(
+                "Harvest failed: empty plot."
+            )
+
+            return False
+
+        if plant["growth"] < plant["growth_days"]:
+
+            remaining = (
+                plant["growth_days"]
+                - plant["growth"]
+            )
+
+            self.algorithm_report = (
+                plant["name"]
+                + " is not ready. "
+                + str(remaining)
+                + " day(s) remaining."
+            )
+
+            self.log.append(
+                "Harvest failed: "
+                + plant["name"]
+                + " is not ready."
+            )
+
+            return False
+
+        crop = self.crops[
+            plant["name"]
+        ]
+
+        self._record(
+            "Harvest "
+            + plant["name"]
+            + " at plot "
+            + str(position)
+        )
+
+        value = crop["harvest"]
+        hope_gain = crop["hope"]
+
+        self.coins += value
+        self.seeds += 1
+        self.hope = min(
+            100,
+            self.hope + hope_gain
+        )
+
+        self.score += 5
+
+        old_count = self.inventory.get(
+            plant["name"],
+            0
+        )
+
+        self.inventory.put(
+            plant["name"],
+            old_count + 1
+        )
+
+        self.harvest_bst.insert(
+            value
+        )
+
+        self.harvest_values.append(
+            value
+        )
+
+        row = position // 5
+        col = position % 5
+
+        self.garden_map[row][col] = None
+
+        self.plots.set(
+            position,
+            None
+        )
+
+        self.algorithm_report = (
+            "Harvested "
+            + plant["name"]
+            + "! +"
+            + str(value)
+            + " coins, +"
+            + str(hope_gain)
+            + " hope, +1 seed."
+        )
+
+        self.log.append(
+            "Harvested "
+            + plant["name"]
+            + " at plot "
+            + str(position)
+        )
+
+        return True
+
+
+    # ========================================================
+    # ADVANCE DAY
+    # ========================================================
+
+    def advance_day(self):
+
+        self._record(
+            "Advance day"
+        )
+
+        self.day += 1
+
+        growth_count = 0
+
+        for i in range(25):
+
+            plant = self.plots.get(i)
+
+            if plant is None:
+                continue
+
+            if plant["watered"]:
+
+                plant["growth"] += 1
+
+                plant["health"] = min(
+                    100,
+                    plant["health"] + 5
+                )
+
+                growth_count += 1
+
+            else:
+
+                plant["health"] = max(
+                    0,
+                    plant["health"] - 5
+                )
+
+            plant["watered"] = False
+
+        # Daily energy recovery
+        self.energy = min(
+            150,
+            self.energy + 10
+        )
+
+        # Automatically add a weather event.
+        cycle = [
+            "Rain",
+            "Heat Wave",
+            "Drought",
+            "Heavy Rain"
+        ]
+
+        event = cycle[
+            (self.day - 1)
+            % len(cycle)
+        ]
+
+        self.climate.add_challenge(
+            event
+        )
+
+        self.algorithm_report = (
+            "Day "
+            + str(self.day)
+            + " started. "
+            + str(growth_count)
+            + " plant(s) grew. "
+            + event
+            + " was added to the Climate Queue."
+        )
+
+        self.log.append(
+            "Advanced to day "
+            + str(self.day)
+        )
+
+        return True
+
+
+    # ========================================================
+    # SEARCH
+    # ========================================================
+
+    def search_plant(self, query):
+
+        query = str(query).strip()
+
+        names = sorted(
+            self.crops.keys()
+        )
+
+        linear = linear_search(
+            names,
+            query
+        )
+
+        binary = binary_search(
+            names,
+            query
+        )
+
+        if linear != -1:
+
+            self.algorithm_report = (
+                "Found "
+                + query
+                + ". Linear index: "
+                + str(linear)
+                + ", Binary index: "
+                + str(binary)
+            )
+
+            return True
+
+        self.algorithm_report = (
+            "Plant not found: "
+            + query
+        )
+
+        return False
+
+
+    # ========================================================
+    # TREE
+    # ========================================================
+
+    def tree_report(self):
+
+        self.algorithm_report = (
+            "PREORDER: "
+            + str(self.tree.preorder())
+            + "\\n\\n"
+            + "INORDER: "
+            + str(self.tree.inorder())
+            + "\\n\\n"
+            + "POSTORDER: "
+            + str(self.tree.postorder())
+        )
+
+        return self.algorithm_report
+
+
+    # ========================================================
+    # SORTING
+    # ========================================================
+
+    def sort_report(self):
+
+        values = [
+            crop["harvest"]
+            for crop in self.crops.values()
+        ]
+
+        self.algorithm_report = (
+            "Original: "
+            + str(values)
+            + "\\n\\n"
+            + "Bubble: "
+            + str(bubble_sort(values))
+            + "\\n"
+            + "Selection: "
+            + str(selection_sort(values))
+            + "\\n"
+            + "Insertion: "
+            + str(insertion_sort(values))
+            + "\\n"
+            + "Quick: "
+            + str(quick_sort(values))
+            + "\\n"
+            + "Merge: "
+            + str(merge_sort(values))
+        )
+
+        return self.algorithm_report
+
+
+    # ========================================================
+    # BFS
+    # ========================================================
+
+    def bfs_report(self):
+
+        target = (
+            0
+            if self.selected_position() is None
+            else self.selected_position()
+        )
+
+        order = self.graph.bfs(0)
+
+        self.algorithm_report = (
+            "BFS starting from plot 0.\\n"
+            + "Traversal: "
+            + str(order)
+            + "\\n"
+            + "Selected target: "
+            + str(target)
+        )
+
+        return self.algorithm_report
+
+
+    # ========================================================
+    # DFS
+    # ========================================================
+
+    def dfs_report(self):
+
+        target = (
+            0
+            if self.selected_position() is None
+            else self.selected_position()
+        )
+
+        order = self.graph.dfs(0)
+
+        self.algorithm_report = (
+            "DFS starting from plot 0.\\n"
+            + "Traversal: "
+            + str(order)
+            + "\\n"
+            + "Selected target: "
+            + str(target)
+        )
+
+        return self.algorithm_report
+
+
+    def selected_position(self):
+
+        # Selection is handled by JavaScript.
+        # Graph demonstrations use plot 24 by default.
+        return 24
+
+
+    # ========================================================
+    # DIJKSTRA
+    # ========================================================
+
+    def dijkstra_report(self):
+
+        target = self.selected_position()
+
+        path, cost = self.graph.dijkstra(
+            0,
+            target
+        )
+
+        self.algorithm_report = (
+            "Dijkstra shortest route from plot 0 "
+            + "to plot "
+            + str(target)
+            + ":\\n"
+            + str(path)
+            + "\\n\\nTotal cost: "
+            + str(cost)
+        )
+
+        return self.algorithm_report
+
+
+    # ========================================================
+    # GREEDY
+    # ========================================================
+
+    def greedy_plan(self):
+
+        available_water = self.water
+
+        choices = []
+
+        for name, crop in self.crops.items():
+
+            ratio = (
+                crop["harvest"]
+                / crop["water"]
+            )
+
+            choices.append(
+                (
+                    ratio,
+                    name,
+                    crop["water"],
+                    crop["harvest"]
+                )
+            )
+
+        choices.sort(
+            reverse=True
+        )
+
+        selected = []
+        total_water = 0
+        total_value = 0
+
+        for ratio, name, water, value in choices:
+
+            if len(selected) >= 5:
+                break
+
+            if total_water + water <= available_water:
+
+                selected.append(name)
+                total_water += water
+                total_value += value
+
+        return {
+            "plants": selected,
+            "water": total_water,
+            "value": total_value
+        }
+
+
+    def greedy_report(self):
+
+        result = self.greedy_plan()
+
+        self.algorithm_report = (
+            "Greedy planting plan:\\n"
+            + str(result["plants"])
+            + "\\n\\nWater used: "
+            + str(result["water"])
+            + "\\nExpected value: "
+            + str(result["value"])
+        )
+
+        return self.algorithm_report
+
+
+    # ========================================================
+    # DYNAMIC PROGRAMMING
+    # ========================================================
+
+    def dynamic_plan(self):
+
+        items = []
+
+        for name, crop in self.crops.items():
+
+            items.append(
+                (
+                    name,
+                    crop["water"],
+                    crop["harvest"]
+                )
+            )
+
+        max_water = min(
+            self.water,
+            40
+        )
+
+        max_slots = 5
+
+        memo = {}
+
+        def solve(index, water, slots):
+
+            key = (
+                index,
+                water,
+                slots
+            )
+
+            if key in memo:
+                return memo[key]
+
+            if (
+                index >= len(items)
+                or slots == 0
+                or water <= 0
+            ):
+                return (
+                    0,
+                    []
+                )
+
+            name, weight, value = items[index]
+
+            best_value, best_items = solve(
+                index + 1,
+                water,
+                slots
+            )
+
+            if weight <= water:
+
+                take_value, take_items = solve(
+                    index + 1,
+                    water - weight,
+                    slots - 1
+                )
+
+                take_value += value
+
+                if take_value > best_value:
+
+                    best_value = take_value
+
+                    best_items = (
+                        [name]
+                        + take_items
+                    )
+
+            memo[key] = (
+                best_value,
+                best_items
+            )
+
+            return memo[key]
+
+        value, plants = solve(
+            0,
+            max_water,
+            max_slots
+        )
+
+        return {
+            "plants": plants,
+            "water_budget": max_water,
+            "value": value
+        }
+
+
+    def dynamic_report(self):
+
+        result = self.dynamic_plan()
+
+        self.algorithm_report = (
+            "Dynamic Programming plan:\\n"
+            + str(result["plants"])
+            + "\\n\\nWater budget: "
+            + str(result["water_budget"])
+            + "\\nOptimal value: "
+            + str(result["value"])
+        )
+
+        return self.algorithm_report
+
+
+    # ========================================================
+    # DIVIDE AND CONQUER
+    # ========================================================
+
+    def divide_report(self):
+
+        total = divide_and_conquer_sum(
+            self.harvest_values
+        )
+
+        self.algorithm_report = (
+            "Divide-and-Conquer harvest total: "
+            + str(total)
+            + "\\n\\n"
+            + "Values: "
+            + str(self.harvest_values)
+        )
+
+        return self.algorithm_report
+
+
+    # ========================================================
+    # ANALYSIS
+    # ========================================================
+
+    def analyze(self):
+
+        self.algorithm_report = (
+            "GARDEN ANALYSIS\\n\\n"
+            + "Dynamic Array: "
+            + str(self.plots.size)
+            + " plots\\n"
+            + "2D Map: 5 x 5\\n"
+            + "Stack actions: "
+            + str(len(self.stack.stack))
+            + "\\n"
+            + "Climate Queue: "
+            + str(len(self.climate.queue))
+            + "\\n"
+            + "Inventory items: "
+            + str(self.inventory.size)
+            + "\\n"
+            + "Hash collisions: "
+            + str(self.inventory.collisions)
+            + "\\n"
+            + "Hash rehashes: "
+            + str(self.inventory.rehashes)
+            + "\\n"
+            + "Graph nodes: "
+            + str(self.graph.nodes)
+            + "\\n"
+            + "Graph edges: "
+            + str(self.graph.edge_count)
+            + "\\n"
+            + "BST harvest values: "
+            + str(self.harvest_bst.inorder())
+        )
+
+        return self.algorithm_report
+
+
+    # ========================================================
+    # STATE
+    # ========================================================
+
+    def state(self):
+
+        plots = []
+
+        for i in range(25):
+
+            plant = self.plots.get(i)
+
+            if plant is None:
+
+                plots.append(None)
+
+            else:
+
+                data = dict(plant)
+
+                data["ready"] = (
+                    plant["growth"]
+                    >= plant["growth_days"]
+                )
+
+                plots.append(data)
+
+        return {
+            "version": "0.3.0",
+
+            "day": self.day,
+            "score": self.score,
+
+            "water": self.water,
+            "seeds": self.seeds,
+            "energy": self.energy,
+            "hope": self.hope,
+            "coins": self.coins,
+
+            "plots": plots,
+
+            "queue": self.climate.to_list(),
+
+            "stack": self.stack.describe(),
+
+            "inventory": dict(
+                self.inventory.items()
+            ),
+
+            "hash": {
+                "capacity": self.inventory.capacity,
+                "size": self.inventory.size,
+                "collisions": self.inventory.collisions,
+                "rehashes": self.inventory.rehashes
+            },
+
+            "algorithm": self.algorithm_report,
+
+            "log": self.log[-10:]
+        }
+
+
+# ============================================================
+# GLOBAL GAME INSTANCE
+# ============================================================
+
+game = GardenGame()
+
+
+# ============================================================
+# JAVASCRIPT BRIDGE FUNCTIONS
+# ============================================================
+
+def game_state_json():
+
+    return json.dumps(
+        game.state()
+    )
+
+
+def game_plant(position, crop_name):
+
+    result = game.plant(
+        int(position),
+        crop_name
+    )
+
+    return game_state_json()
+
+
+def game_water(position):
+
+    result = game.water_plot(
+        int(position)
+    )
+
+    return game_state_json()
+
+
+def game_harvest(position):
+
+    result = game.harvest_plot(
+        int(position)
+    )
+
+    return game_state_json()
+
+
+def game_process_weather():
+
+    result = game.process_weather()
+
+    return game_state_json()
+
+
+def game_add_weather(event):
+
+    result = game.add_weather(
+        event
+    )
+
+    return game_state_json()
+
+
+def game_advance_day():
+
+    result = game.advance_day()
+
+    return game_state_json()
+
+
+def game_undo():
+
+    result = game.undo()
+
+    return game_state_json()
+
+
+def game_search(query):
+
+    game.search_plant(query)
+
+    return game_state_json()
+
+
+def game_tree():
+
+    game.tree_report()
+
+    return game_state_json()
+
+
+def game_sort():
+
+    game.sort_report()
+
+    return game_state_json()
+
+
+def game_bfs():
+
+    game.bfs_report()
+
+    return game_state_json()
+
+
+def game_dfs():
+
+    game.dfs_report()
+
+    return game_state_json()
+
+
+def game_dijkstra():
+
+    game.dijkstra_report()
+
+    return game_state_json()
+
+
+def game_greedy():
+
+    game.greedy_report()
+
+    return game_state_json()
+
+
+def game_dynamic():
+
+    game.dynamic_report()
+
+    return game_state_json()
+
+
+def game_divide():
+
+    game.divide_report()
+
+    return game_state_json()
+
+
+def game_analyze():
+
+    game.analyze()
+
+    return game_state_json()
+`;
+
+
+/* ============================================================
+   PYTHON CONSOLE
+   ============================================================ */
+
+class BrowserConsole {
+
+    constructor(element) {
+        this.element = element;
+    }
+
+    write(text) {
+        this.element.textContent += text;
+        this.element.scrollTop =
+            this.element.scrollHeight;
+    }
+
+    flush() {}
+}
+
+
+/* ============================================================
+   UI HELPERS
+   ============================================================ */
+
+function showMessage(message) {
+
+    const element =
+        document.getElementById("game-message");
+
+    element.textContent = message;
+}
+
+
+function showAlgorithm(message) {
+
+    const element =
+        document.getElementById("algorithm-output");
+
+    element.textContent = message;
+}
+
+
+async function executeGame(functionCall) {
+
+    if (!pyodideInstance || !gameReady) {
+
+        showMessage(
+            "Python game engine is not ready yet."
+        );
+
+        return null;
+    }
+
+    try {
+
+        const result =
+            await pyodideInstance.runPythonAsync(
+                functionCall
+            );
+
+        const state =
+            JSON.parse(result);
+
+        renderState(state);
+
+        return state;
+
+    } catch (error) {
+
+        console.error(error);
+
+        showMessage(
+            "Error: " + error
+        );
+
+        return null;
+    }
+}
+
+
+/* ============================================================
+   RENDER STATE
+   ============================================================ */
+
+function renderState(state) {
+
+    document.getElementById(
+        "day-counter"
+    ).textContent = state.day;
+
+    document.getElementById(
+        "score-counter"
+    ).textContent = state.score;
+
+    document.getElementById(
+        "water-value"
+    ).textContent = state.water;
+
+    document.getElementById(
+        "seeds-value"
+    ).textContent = state.seeds;
+
+    document.getElementById(
+        "energy-value"
+    ).textContent = state.energy;
+
+    document.getElementById(
+        "hope-value"
+    ).textContent = state.hope;
+
+    document.getElementById(
+        "coins-value"
+    ).textContent = state.coins;
+
+
+    renderGarden(
+        state.plots
+    );
+
+    renderQueue(
+        state.queue
+    );
+
+    renderStack(
+        state.stack
+    );
+
+    renderInventory(
+        state.inventory,
+        state.hash
+    );
+
+    renderLog(
+        state.log
+    );
+
+    showAlgorithm(
+        state.algorithm
+    );
+
+    showMessage(
+        state.algorithm
+    );
+}
+
+
+/* ============================================================
+   RENDER GARDEN
+   ============================================================ */
+
+function renderGarden(plots) {
+
+    const grid =
+        document.getElementById(
+            "garden-grid"
+        );
+
+    grid.innerHTML = "";
+
+    plots.forEach(
+        (plant, index) => {
+
+            const button =
+                document.createElement("button");
+
+            button.className =
+                "plot";
+
+            if (selectedPlot === index) {
+                button.classList.add(
+                    "selected"
+                );
+            }
+
+            if (plant === null) {
+
+                button.classList.add(
+                    "empty"
+                );
+
+                button.innerHTML = `
+                    <div class="h-full flex flex-col items-center justify-center">
+                        <div class="text-xl">+</div>
+                        <div class="text-xs">
+                            Plot ${index}
+                        </div>
+                    </div>
+                `;
+
+            } else {
+
+                if (plant.ready) {
+
+                    button.classList.add(
+                        "ready"
+                    );
+                }
+
+                const crop =
+                    CROPS[plant.name];
+
+                const percent =
+                    Math.min(
+                        100,
+                        Math.round(
+                            plant.growth /
+                            plant.growth_days *
+                            100
+                        )
+                    );
+
+                button.innerHTML = `
+                    <div class="h-full p-2 flex flex-col items-center justify-between">
+
+                        <div class="text-xs text-gray-500">
+                            #${index}
+                        </div>
+
+                        <div class="plant-symbol">
+                            ${crop ? crop.icon : "[P]"}
+                        </div>
+
+                        <div class="text-xs font-bold">
+                            ${plant.name}
+                        </div>
+
+                        <div class="w-full">
+                            <div class="h-1 bg-gray-800 rounded">
+                                <div
+                                    class="h-1 bg-green-500 rounded"
+                                    style="width:${percent}%">
+                                </div>
+                            </div>
+
+                            <div class="text-[10px] mt-1">
+                                Growth ${plant.growth}/${plant.growth_days}
+                            </div>
+
+                            <div class="text-[10px]">
+                                HP ${plant.health}
+                            </div>
+
+                            <div class="text-[10px]">
+                                ${plant.watered ? "Watered" : "Needs water"}
+                            </div>
+                        </div>
+
+                    </div>
+                `;
+            }
+
+
+            button.onclick =
+                () => selectPlot(index);
+
+            grid.appendChild(
+                button
+            );
+        }
+    );
+}
+
+
+/* ============================================================
+   SELECT PLOT
+   ============================================================ */
+
+function selectPlot(index) {
+
+    selectedPlot = index;
+
+    const label =
+        document.getElementById(
+            "selected-plot"
+        );
+
+    label.textContent =
+        "Selected plot: " + index;
+
+    /*
+     * Re-render using current Python state.
+     */
+    refreshGameState();
+}
+
+
+/* ============================================================
+   REFRESH
+   ============================================================ */
+
+async function refreshGameState() {
+
+    if (!pyodideInstance) {
+        return;
+    }
+
+    try {
+
+        const result =
+            await pyodideInstance.runPythonAsync(
+                "game_state_json()"
+            );
+
+        const state =
+            JSON.parse(result);
+
+        renderState(state);
+
+    } catch (error) {
+
+        console.error(
+            "Refresh error:",
+            error
+        );
+    }
+}
+
+
+/* ============================================================
+   PLANT
+   ============================================================ */
+
+async function plantSelected() {
+
+    if (selectedPlot === null) {
+
+        showMessage(
+            "Select an empty plot first."
+        );
+
+        return;
+    }
+
+    const crop =
+        document.getElementById(
+            "crop-selector"
+        ).value;
+
+    await executeGame(
+        `game_plant(${selectedPlot}, ${JSON.stringify(crop)})`
+    );
+}
+
+
+/* ============================================================
+   WATER
+   ============================================================ */
+
+async function waterSelected() {
+
+    if (selectedPlot === null) {
+
+        showMessage(
+            "Select a plant first."
+        );
+
+        return;
+    }
+
+    await executeGame(
+        `game_water(${selectedPlot})`
+    );
+}
+
+
+/* ============================================================
+   HARVEST
+   ============================================================ */
+
+async function harvestSelected() {
+
+    if (selectedPlot === null) {
+
+        showMessage(
+            "Select a plant first."
+        );
+
+        return;
+    }
+
+    await executeGame(
+        `game_harvest(${selectedPlot})`
+    );
+}
+
+
+/* ============================================================
+   PROCESS WEATHER
+   ============================================================ */
+
+async function processWeather() {
+
+    await executeGame(
+        "game_process_weather()"
+    );
+}
+
+
+/* ============================================================
+   ADD WEATHER
+   ============================================================ */
+
+async function addWeather() {
+
+    const event =
+        document.getElementById(
+            "weather-selector"
+        ).value;
+
+    await executeGame(
+        `game_add_weather(${JSON.stringify(event)})`
+    );
+}
+
+
+/* ============================================================
+   ADVANCE DAY
+   ============================================================ */
+
+async function advanceDay() {
+
+    selectedPlot = null;
+
+    document.getElementById(
+        "selected-plot"
+    ).textContent =
+        "No plot selected";
+
+    await executeGame(
+        "game_advance_day()"
+    );
+}
+
+
+/* ============================================================
+   UNDO
+   ============================================================ */
+
+async function undoAction() {
+
+    await executeGame(
+        "game_undo()"
+    );
+}
+
+
+/* ============================================================
+   SEARCH
+   ============================================================ */
+
+async function searchPlant() {
+
+    const input =
+        document.getElementById(
+            "search-input"
+        );
+
+    const query =
+        input.value.trim();
+
+    if (!query) {
+
+        showMessage(
+            "Enter a plant name."
+        );
+
+        return;
+    }
+
+    await executeGame(
+        `game_search(${JSON.stringify(query)})`
+    );
+}
+
+
+/* ============================================================
+   ALGORITHM BUTTONS
+   ============================================================ */
+
+async function runTreeTraversal() {
+
+    await executeGame(
+        "game_tree()"
+    );
+}
+
+
+async function runSortAlgorithms() {
+
+    await executeGame(
+        "game_sort()"
+    );
+}
+
+
+async function runBFS() {
+
+    await executeGame(
+        "game_bfs()"
+    );
+}
+
+
+async function runDFS() {
+
+    await executeGame(
+        "game_dfs()"
+    );
+}
+
+
+async function runDijkstra() {
+
+    await executeGame(
+        "game_dijkstra()"
+    );
+}
+
+
+async function runGreedy() {
+
+    await executeGame(
+        "game_greedy()"
+    );
+}
+
+
+async function runDP() {
+
+    await executeGame(
+        "game_dynamic()"
+    );
+}
+
+
+async function runDivideConquer() {
+
+    await executeGame(
+        "game_divide()"
+    );
+}
+
+
+async function showGardenAnalysis() {
+
+    await executeGame(
+        "game_analyze()"
+    );
+}
+
+
+/* ============================================================
+   INVENTORY
+   ============================================================ */
+
+function renderInventory(
+    inventory,
+    hash
+) {
+
+    const element =
+        document.getElementById(
+            "inventory-list"
+        );
+
+    const items =
+        Object.entries(inventory);
+
+    if (items.length === 0) {
+
+        element.innerHTML =
+            "Empty";
+
+        return;
+    }
+
+    element.innerHTML = "";
+
+    items.forEach(
+        ([name, count]) => {
+
+            const row =
+                document.createElement(
+                    "div"
+                );
+
+            row.className =
+                "flex justify-between border-b border-green-900 py-1";
+
+            row.innerHTML = `
+                <span>${name}</span>
+                <strong>${count}</strong>
+            `;
+
+            element.appendChild(
+                row
+            );
+        }
+    );
+
+    const stats =
+        document.createElement(
+            "div"
+        );
+
+    stats.className =
+        "mt-3 text-[10px] text-gray-500";
+
+    stats.innerHTML =
+        "Capacity: "
+        + hash.capacity
+        + " | Collisions: "
+        + hash.collisions
+        + " | Rehashes: "
+        + hash.rehashes;
+
+    element.appendChild(
+        stats
+    );
+}
+
+
+/* ============================================================
+   QUEUE
+   ============================================================ */
+
+function renderQueue(queue) {
+
+    const element =
+        document.getElementById(
+            "climate-queue"
+        );
+
+    element.innerHTML = "";
+
+    if (queue.length === 0) {
+
+        element.innerHTML =
+            '<div class="text-gray-500">Queue is empty.</div>';
+
+        return;
+    }
+
+    queue.forEach(
+        (event, index) => {
+
+            const row =
+                document.createElement(
+                    "div"
+                );
+
+            row.className =
+                "flex justify-between bg-gray-900 rounded-lg p-2";
+
+            row.innerHTML = `
+                <span>${index === 0 ? "[NEXT] " : ""}${event}</span>
+                <span class="text-gray-500">
+                    ${index}
+                </span>
+            `;
+
+            element.appendChild(
+                row
+            );
+        }
+    );
+}
+
+
+/* ============================================================
+   STACK
+   ============================================================ */
+
+function renderStack(stack) {
+
+    const element =
+        document.getElementById(
+            "action-stack"
+        );
+
+    element.innerHTML = "";
+
+    if (stack.length === 0) {
+
+        element.innerHTML =
+            '<div class="text-gray-500">No actions yet.</div>';
+
+        return;
+    }
+
+    stack.forEach(
+        (action, index) => {
+
+            const row =
+                document.createElement(
+                    "div"
+                );
+
+            row.className =
+                "bg-gray-900 rounded-lg p-2";
+
+            row.textContent =
+                (index === 0
+                    ? "[TOP] "
+                    : "")
+                + action;
+
+            element.appendChild(
+                row
+            );
+        }
+    );
+}
+
+
+/* ============================================================
+   LOG
+   ============================================================ */
+
+function renderLog(log) {
+
+    const element =
+        document.getElementById(
+            "game-log"
+        );
+
+    element.innerHTML = "";
+
+    log.slice()
+        .reverse()
+        .forEach(
+            entry => {
+
+                const row =
+                    document.createElement(
+                        "div"
+                    );
+
+                row.className =
+                    "border-b border-green-950 pb-1";
+
+                row.textContent =
+                    entry;
+
+                element.appendChild(
+                    row
+                );
+            }
+        );
+}
+
+
+/* ============================================================
+   CROP SELECTOR
+   ============================================================ */
+
+function setupCropSelector() {
+
+    const selector =
+        document.getElementById(
+            "crop-selector"
+        );
+
+    selector.innerHTML = "";
+
+    Object.entries(CROPS)
+        .forEach(
+            ([name, crop]) => {
+
+                const option =
+                    document.createElement(
+                        "option"
+                    );
+
+                option.value = name;
+
+                option.textContent =
+                    crop.icon
+                    + " "
+                    + name;
+
+                selector.appendChild(
+                    option
+                );
+            }
+        );
+
+    selector.onchange =
+        updateCropInfo;
+
+    updateCropInfo();
+}
+
+
+function updateCropInfo() {
+
+    const name =
+        document.getElementById(
+            "crop-selector"
+        ).value;
+
+    const crop =
+        CROPS[name];
+
+    document.getElementById(
+        "crop-info"
+    ).innerHTML = `
+        <div class="font-bold text-green-300">
+            ${name}
+        </div>
+
+        <div>Category: ${crop.category}</div>
+        <div>Seed cost: ${crop.seedCost}</div>
+        <div>Water: ${crop.water}</div>
+        <div>Energy: ${crop.energy}</div>
+        <div>Growth: ${crop.growth} day(s)</div>
+        <div>Harvest: ${crop.harvest} coins</div>
+    `;
+}
+
+
+/* ============================================================
+   TOPIC SELECTOR
+   ============================================================ */
+
+function setupTopics() {
+
+    const selector =
+        document.getElementById(
+            "topic-selector"
+        );
+
+    selector.innerHTML = "";
+
+    Object.keys(TOPICS)
+        .forEach(
+            topic => {
+
+                const option =
+                    document.createElement(
+                        "option"
+                    );
+
+                option.value = topic;
+                option.textContent = topic;
+
+                selector.appendChild(
+                    option
+                );
+            }
+        );
+
+    selector.onchange =
+        updateTopicCode;
+
+    updateTopicCode();
+}
+
+
+function updateTopicCode() {
+
+    const topic =
+        document.getElementById(
+            "topic-selector"
+        ).value;
+
+    document.getElementById(
+        "code-editor"
+    ).textContent =
+        TOPICS[topic];
+}
+
+
+/* ============================================================
+   RUN TOPIC CODE
+   ============================================================ */
+
+async function runTopicCode() {
+
+    if (!pyodideInstance) {
+
+        showMessage(
+            "Python is not ready."
+        );
+
+        return;
+    }
+
+    const topic =
+        document.getElementById(
+            "topic-selector"
+        ).value;
+
+    const code =
+        TOPICS[topic];
+
+    const consoleElement =
+        document.getElementById(
+            "python-console"
+        );
+
+    consoleElement.textContent =
+        "Running "
+        + topic
+        + "...\\n\\n";
+
+    try {
+
+        await pyodideInstance.runPythonAsync(
+            code
+        );
+
+    } catch (error) {
+
+        consoleElement.textContent +=
+            "\\nERROR:\\n"
+            + error;
+
+        console.error(error);
+    }
+}
+
+
+/* ============================================================
+   PYODIDE INITIALIZATION
+   ============================================================ */
+
+async function initializeGame() {
+
+    const consoleElement =
+        document.getElementById(
+            "python-console"
+        );
+
+    consoleElement.textContent =
+        "Loading Pyodide...\\n";
+
+    try {
+
+        pyodideInstance =
+            await loadPyodide();
+
+        consoleElement.textContent +=
+            "Pyodide loaded.\\n";
+
+        /*
+         * JavaScript bridge functions.
+         */
+        pyodideInstance.globals.set(
+            "pushAction",
+            function(action) {
+
+                console.log(
+                    "Python Stack:",
+                    action
+                );
+            }
+        );
+
+
+        pyodideInstance.globals.set(
+            "updateClimateQueue",
+            function(events) {
+
+                console.log(
+                    "Python Queue:",
+                    events
+                );
+            }
+        );
+
+
+        consoleElement.textContent +=
+            "Loading Python game engine...\\n";
+
+
+        await pyodideInstance.runPythonAsync(
+            PYTHON_GAME_CODE
+        );
+
+
+        /*
+         * Redirect Python print() to the browser console.
+         */
+        pyodideInstance.runPython(
+            `
+import sys
+
+class BrowserConsole:
+
+    def write(self, text):
+        import js
+        element = js.document.getElementById(
+            "python-console"
+        )
+        element.textContent += text
+        element.scrollTop = element.scrollHeight
+
+    def flush(self):
+        pass
+
+sys.stdout = BrowserConsole()
+`
+        );
+
+
+        gameReady = true;
+
+        consoleElement.textContent +=
+            "Garden game loaded successfully.\\n";
+
+
+        await refreshGameState();
+
+        showMessage(
+            "Game ready. Select a plot to begin."
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Initialization error:",
+            error
+        );
+
+        consoleElement.textContent +=
+            "\\nINITIALIZATION ERROR:\\n"
+            + error;
+
+        showMessage(
+            "Python failed to initialize. Check the console."
+        );
+    }
+}
+
+
+/* ============================================================
+   START
+   ============================================================ */
+
+document.addEventListener(
+    "DOMContentLoaded",
+    () => {
+
+        document.getElementById(
+            "app-version"
+        ).textContent =
+            APP_VERSION;
+
+        setupCropSelector();
+
+        setupTopics();
+
+        lucide.createIcons();
+
+        initializeGame();
+    }
+);
+
+</script>
+
+</body>
+</html>
