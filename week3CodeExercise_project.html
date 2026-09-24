@@ -105,15 +105,32 @@
                 <div class="flex items-center justify-between mb-4">
                     <div>
                         <h2 class="text-lg font-bold text-white">Sanctuary Garden Grid</h2>
-                        <p class="text-xs text-emerald-300">Click empty soil tiles to plant.</p>
+                        <p class="text-xs text-emerald-300">Buy seeds, plant, harvest, and sell crops to unlock higher levels.</p>
                     </div>
-                    <div class="flex items-center gap-2">
+                    <div class="flex flex-wrap items-center gap-2">
                         <span class="text-xs text-emerald-300">Seed Bag:</span>
-                        <select id="crop-selector" class="bg-[#1b2219] border border-emerald-700 text-emerald-100 text-sm rounded-xl px-3 py-2">
-                        </select>
+                        <select id="crop-selector" class="bg-[#1b2219] border border-emerald-700 text-emerald-100 text-sm rounded-xl px-3 py-2"></select>
+                        <button onclick="toggleShovel()" id="shovel-button" class="bg-[#2a3825] hover:bg-[#34462e] border border-emerald-800 text-emerald-200 px-3 py-2 rounded-xl text-xs font-bold">Shovel: OFF</button>
+                        <button onclick="generateWeatherFromSimulator()" class="bg-amber-700 hover:bg-amber-600 text-white px-3 py-2 rounded-xl text-xs font-bold">Weather</button>
                     </div>
                 </div>
                 <div id="garden-grid" class="grid grid-cols-5 gap-3"></div>
+                <div class="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div class="bg-[#1b2219] border border-emerald-800 rounded-xl p-3">
+                        <div class="text-xs font-bold text-emerald-300 mb-2">SEED SHOP</div>
+                        <select id="shop-selector" class="w-full bg-[#0f160e] border border-emerald-800 text-emerald-100 text-xs rounded-lg px-2 py-2"></select>
+                        <button onclick="buySelectedSeed()" class="mt-2 w-full bg-emerald-700 hover:bg-emerald-600 py-2 rounded-lg text-xs font-bold">Buy Seed</button>
+                    </div>
+                    <div class="bg-[#1b2219] border border-emerald-800 rounded-xl p-3">
+                        <div class="text-xs font-bold text-emerald-300 mb-2">HARVEST / SELL</div>
+                        <select id="sell-selector" class="w-full bg-[#0f160e] border border-emerald-800 text-emerald-100 text-xs rounded-lg px-2 py-2"></select>
+                        <button onclick="sellSelectedCrop()" class="mt-2 w-full bg-amber-700 hover:bg-amber-600 py-2 rounded-lg text-xs font-bold">Sell Harvest</button>
+                    </div>
+                    <div class="bg-[#1b2219] border border-emerald-800 rounded-xl p-3">
+                        <div class="text-xs font-bold text-emerald-300 mb-2">PROGRESSION</div>
+                        <div id="progress-summary" class="text-xs text-emerald-100 leading-5"></div>
+                    </div>
+                </div>
             </div>
             <div id="view-code" class="glass-panel rounded-2xl p-6 flex flex-col flex-grow hidden">
                 <h2 class="font-bold mb-3 flex items-center gap-2">
@@ -139,10 +156,12 @@
                 <h3 class="font-bold text-emerald-400 mb-3 flex items-center gap-2">
                     <i data-lucide="history" class="w-4 h-4"></i> Action History (Stack)
                 </h3>
-                <div id="action-stack" class="flex-1 space-y-2 text-sm overflow-auto"></div>
-                <button onclick="triggerUndo()" class="mt-4 w-full bg-[#2a3825] hover:bg-[#34462e] text-emerald-200 py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 border border-emerald-800">
-                    <i data-lucide="undo-2" class="w-4 h-4"></i> Undo (Stack Pop)
-                </button>
+                <div id="action-stack" class="space-y-2 text-sm overflow-auto max-h-32"></div>
+                <div class="mt-3 pt-3 border-t border-emerald-800/50">
+                    <div id="hierarchy-tree"
+                         class="bg-[#11180f] border border-emerald-700 rounded-xl p-3 min-h-[210px] text-xs leading-6 shadow-inner">
+                    </div>
+                </div>
             </div>
         </section>
     </main>
@@ -155,27 +174,32 @@
         // PATCH: bug fix or small tweak with no new feature
         // Use 0.x.y while in development; move to 1.0.0 once all 11 topics are complete.
         // =====================================================================
-        const APP_VERSION = "0.2.0";
+        const APP_VERSION = "0.3.0";
 
         let pyodideInstance = null;
         let gardenPlants = {};
-        let currentCoins = 0;
-        let plantOptions = [
-            ["Rose", "🌹", 12],
-            ["Sampaguita", "🌼", 10],
-            ["Basil", "🌿", 8]
-        ];
-        // Display-only list of action labels (populated by Python via pushAction). No JS game logic.
+        let plantHealth = {};
+        let currentCoins = 990;
+        let currentWater = 200;
+        let currentSeeds = 90;
+        let currentEnergy = 110;
+        let currentHope = 80;
+        let shovelMode = false;
+        let harvestedInventory = {};
+        let seedInventory = {};
+        let soldCounts = { Flowers: 0, Fruits: 0 };
+        let currentLevel = 1;
+        let lastWeather = null;
         let displayActionHistory = [];
 
-        // =====================================================================
-        // TOPIC TEMPLATES — paste your Python for each topic into the matching entry.
-        // Call the bridge functions from your Python to update the UI.
-        // =====================================================================
         const topicTemplates = {
             1: {
                 title: "Python OOP + Big O + Stacks",
                 code: `# Topic 1: Python OOP + Big O + Stacks
+# Action History Stack + Shovel System
+# Undo is intentionally removed.
+# A shovel removes/replaces a plant but NEVER refunds its purchase cost.
+
 class ActionHistoryStack:
     def __init__(self):
         self.stack = []
@@ -199,44 +223,27 @@ class ActionHistoryStack:
 
 stack = ActionHistoryStack()
 
-
+print("Action History Stack")
+print("Purpose: record garden actions using LIFO.")
+print("Undo/refund is disabled.")
+print("Shovel removes a plant without returning its spent coins.")
 print("Peek:", stack.peek())
 print("Pop:", stack.pop_action())
 print("Is empty:", stack.is_empty())
-
-print("Action History Stack ready! (push, pop & peek tested)")
+print("Action History Stack ready!")
 `
             },
             2: {
-    title: "Queues & Deques (FIFO Elements)",
-    code: `# Topic 2: Queues & Deques (FIFO Elements)
+                title: "Queues & Deques (FIFO Elements)",
+                code: `# Topic 2: Queues & Deques (FIFO Elements)
 # Random Weather + Climate Effects
-#
-# Queue responsibility:
-# - Store weather events
-# - Process weather using FIFO
-# - Demonstrate deque operations
-#
-# Plant responsibility belongs to Topic 3.
+# Weather is generated one event at a time.
 
 from collections import deque
 import random
 
-
-# ============================================================
-# CLIMATE EVENT
-# ============================================================
-
 class ClimateEvent:
-
-    def __init__(
-        self,
-        name,
-        severity,
-        water_effect=0,
-        energy_effect=0,
-        plant_health_effect=0
-    ):
+    def __init__(self, name, severity, water_effect=0, energy_effect=0, plant_health_effect=0):
         self.name = name
         self.severity = severity
         self.water_effect = water_effect
@@ -244,405 +251,229 @@ class ClimateEvent:
         self.plant_health_effect = plant_health_effect
 
     def description(self):
-
         effects = []
-
-        # Water
         if self.water_effect > 0:
-            effects.append(
-                f"+{self.water_effect} Water"
-            )
+            effects.append(f"+{self.water_effect} Water")
         elif self.water_effect < 0:
-            effects.append(
-                f"{self.water_effect} Water"
-            )
-
-        # Energy
+            effects.append(f"{self.water_effect} Water")
         if self.energy_effect > 0:
-            effects.append(
-                f"+{self.energy_effect} Energy"
-            )
+            effects.append(f"+{self.energy_effect} Energy")
         elif self.energy_effect < 0:
-            effects.append(
-                f"{self.energy_effect} Energy"
-            )
-
-        # Plant health
+            effects.append(f"{self.energy_effect} Energy")
         if self.plant_health_effect > 0:
-            effects.append(
-                f"+{self.plant_health_effect} Plant Health"
-            )
+            effects.append(f"+{self.plant_health_effect} Plant Health")
         elif self.plant_health_effect < 0:
-            effects.append(
-                f"{self.plant_health_effect} Plant Health"
-            )
-
-        return (
-            f"{self.name} [{self.severity}] -> "
-            f"{' | '.join(effects)}"
-        )
-
-
-# ============================================================
-# CLIMATE QUEUE
-# ============================================================
+            effects.append(f"{self.plant_health_effect} Plant Health")
+        return f"{self.name} [{self.severity}] -> {' | '.join(effects)}"
 
 class ClimateQueue:
-
     def __init__(self):
-
-        # deque allows efficient FIFO operations.
         self.queue = deque()
-
-        # Current resources for this topic.
         self.water = 200
         self.energy = 110
 
-    # ========================================================
-    # ENQUEUE
-    # ========================================================
+    def enqueue(self, event):
+        self.queue.append(event)
 
-    def enqueue(self, climate_event):
-
-        # Add to the BACK of the queue.
-        self.queue.append(climate_event)
-
-    # ========================================================
-    # DEQUE PRIORITY
-    # ========================================================
-
-    def enqueue_priority(self, climate_event):
-
-        # Add to the FRONT of the deque.
-        self.queue.appendleft(climate_event)
-
-    # ========================================================
-    # DEQUEUE
-    # ========================================================
+    def enqueue_priority(self, event):
+        self.queue.appendleft(event)
 
     def dequeue(self):
-
         if self.queue:
-            # FIFO:
-            # First event in = first event out.
             return self.queue.popleft()
-
         return None
-
-    # ========================================================
-    # PEEK
-    # ========================================================
 
     def peek(self):
-
         if self.queue:
             return self.queue[0]
-
         return None
 
-    # ========================================================
-    # SIZE
-    # ========================================================
-
     def size(self):
-
         return len(self.queue)
 
-    # ========================================================
-    # EMPTY CHECK
-    # ========================================================
-
     def is_empty(self):
-
         return len(self.queue) == 0
 
-    # ========================================================
-    # UPDATE UI QUEUE
-    # ========================================================
-
     def update_display(self):
-
-        events = [
-            event.description()
-            for event in self.queue
-        ]
-
-        updateClimateQueue(events)
-
-    # ========================================================
-    # PROCESS WEATHER
-    # ========================================================
-
-    def process_next(self):
-
-        event = self.dequeue()
-
-        if event is None:
-
-            print("Climate Queue is empty.")
-
-            return None
-
-        print()
-        print("================================")
-        print("PROCESSING WEATHER")
-        print("================================")
-
-        print(
-            f"Weather: {event.name}"
-        )
-
-        print(
-            f"Severity: {event.severity}"
-        )
-
-        print(
-            f"Water Effect: {event.water_effect}"
-        )
-
-        print(
-            f"Energy Effect: {event.energy_effect}"
-        )
-
-        print(
-            f"Plant Health Effect: "
-            f"{event.plant_health_effect}"
-        )
-
-        # Apply water.
-        self.water += event.water_effect
-
-        # Apply energy.
-        self.energy += event.energy_effect
-
-        # Resource limits.
-        self.water = max(0, self.water)
-        self.energy = max(0, self.energy)
-
-        self.water = min(200, self.water)
-        self.energy = min(120, self.energy)
-
-        # Update existing resource UI.
-        updateResources(
-            water=self.water,
-            seeds=90,
-            energy=self.energy,
-            hope=80,
-            coins=990
-        )
-
-        # Update queue UI.
-        self.update_display()
-
-        print()
-        print("RESOURCE RESULT")
-        print(
-            f"Water: {self.water}/200"
-        )
-        print(
-            f"Energy: {self.energy}/120"
-        )
-
-        # Return the processed event.
-        #
-        # Topic 3 can use this event's
-        # plant_health_effect later.
-        return event
-
-    # ========================================================
-    # RANDOM WEATHER
-    # ========================================================
+        updateClimateQueue([event.description() for event in self.queue])
 
     def generate_random_weather(self):
+        return random.choice([
+            ClimateEvent("Sunny", "Low", 0, 10, 5),
+            ClimateEvent("Cloudy", "Low", 5, -5, 2),
+            ClimateEvent("Light Rain", "Moderate", 20, -5, 8),
+            ClimateEvent("Heavy Rain", "High", 40, -15, -3),
+            ClimateEvent("Drought", "High", -30, -10, -15),
+            ClimateEvent("Heatwave", "Critical", -40, -20, -25)
+        ])
 
-        weather_options = [
-            sunny,
-            cloudy,
-            light_rain,
-            heavy_rain,
-            drought,
-            heatwave
-        ]
-
-        return random.choice(
-            weather_options
-        )
-
-    # ========================================================
-    # GENERATE ONE WEATHER
-    # ========================================================
+    def process_next(self):
+        event = self.dequeue()
+        if event is None:
+            return None
+        self.water = max(0, min(200, self.water + event.water_effect))
+        self.energy = max(0, min(120, self.energy + event.energy_effect))
+        updateResources(water=self.water, seeds=90, energy=self.energy, hope=80, coins=currentCoinsFromSimulator())
+        self.update_display()
+        return event
 
     def next_weather(self):
-
-        print()
-        print("================================")
-        print("NEW RANDOM WEATHER")
-        print("================================")
-
-        # Generate exactly ONE event.
         event = self.generate_random_weather()
-
-        print(
-            f"Selected: {event.name}"
-        )
-
-        print(
-            f"Severity: {event.severity}"
-        )
-
-        print(
-            f"Effects: {event.description()}"
-        )
-
-        # Put it into the FIFO queue.
         self.enqueue(event)
-
-        # Display queue.
         self.update_display()
-
-        # Process the first event.
         return self.process_next()
-
-
-# ============================================================
-# WEATHER DEFINITIONS
-# ============================================================
-
-sunny = ClimateEvent(
-    name="Sunny",
-    severity="Low",
-    water_effect=0,
-    energy_effect=10,
-    plant_health_effect=5
-)
-
-cloudy = ClimateEvent(
-    name="Cloudy",
-    severity="Low",
-    water_effect=5,
-    energy_effect=-5,
-    plant_health_effect=2
-)
-
-light_rain = ClimateEvent(
-    name="Light Rain",
-    severity="Moderate",
-    water_effect=20,
-    energy_effect=-5,
-    plant_health_effect=8
-)
-
-heavy_rain = ClimateEvent(
-    name="Heavy Rain",
-    severity="High",
-    water_effect=40,
-    energy_effect=-15,
-    plant_health_effect=-3
-)
-
-drought = ClimateEvent(
-    name="Drought",
-    severity="High",
-    water_effect=-30,
-    energy_effect=-10,
-    plant_health_effect=-15
-)
-
-heatwave = ClimateEvent(
-    name="Heatwave",
-    severity="Critical",
-    water_effect=-40,
-    energy_effect=-20,
-    plant_health_effect=-25
-)
-
-
-# ============================================================
-# CREATE QUEUE
-# ============================================================
 
 climate_queue = ClimateQueue()
 
-
-# ============================================================
-# DEMONSTRATE ONE RANDOM WEATHER
-# ============================================================
-
-print("================================")
-print("CLIMATE QUEUE SYSTEM")
-print("================================")
-
-print("Data Structure: deque")
-print("Queue Rule: FIFO")
-print("Weather Mode: Random")
-print("Weather Events: One at a time")
-
-print()
-
-processed_weather = climate_queue.next_weather()
-
-
-# ============================================================
-# SHOW QUEUE OPERATIONS
-# ============================================================
-
-print()
-print("================================")
-print("QUEUE OPERATIONS")
-print("================================")
-
-print(
-    f"Queue Size: {climate_queue.size()}"
-)
-
-print(
-    f"Queue Empty: {climate_queue.is_empty()}"
-)
-
-print(
-    "Peek Result:",
-    climate_queue.peek()
-)
-
-
-# ============================================================
-# WEATHER INFORMATION FOR TOPIC 3
-# ============================================================
-
-if processed_weather is not None:
-
-    print()
-    print("================================")
-    print("WEATHER RESULT FOR PLANTS")
-    print("================================")
-
-    print(
-        f"Weather: {processed_weather.name}"
-    )
-
-    print(
-        f"Severity: {processed_weather.severity}"
-    )
-
-    print(
-        f"Plant Health Effect: "
-        f"{processed_weather.plant_health_effect}"
-    )
-
-print()
-print("=== Topic 2 Queue System Ready ===")
+print("Climate Queue ready!")
+print("Queue rule: FIFO")
+print("Deque supports appendleft for priority events.")
+print("Simulator can generate one random weather at a time.")
 `
-    },
+            },
             3: {
                 title: "Static/Dynamic Arrays, 2D Lists, & Memory Structures",
                 code: `# Topic 3: Static/Dynamic Arrays, 2D Lists, & Memory Structures
-# ==== WRITE YOUR CODE HERE ====
+# Plant memory belongs here, not in Topic 2.
+
+class Plant:
+    def __init__(self, name, water_need, health=100):
+        self.name = name
+        self.water_need = water_need
+        self.health = health
+
+    def apply_weather_effect(self, amount):
+        self.health = max(0, min(100, self.health + amount))
+
+    def get_status(self):
+        if self.health >= 70:
+            return "Healthy"
+        if self.health >= 40:
+            return "Weak"
+        return "Critical"
+
+    def display(self):
+        return f"{self.name} | Health: {self.health}/100 | {self.get_status()}"
+
+GARDEN_SIZE = 25
+ROWS = 5
+COLUMNS = 5
+
+garden_memory = [None] * GARDEN_SIZE
+plant_memory = []
+garden_2d = [[None for _ in range(COLUMNS)] for _ in range(ROWS)]
+
+def position_to_2d(position):
+    return position // COLUMNS, position % COLUMNS
+
+def position_to_index(row, column):
+    return row * COLUMNS + column
+
+def add_plant(position, name, water_need):
+    if position < 0 or position >= GARDEN_SIZE:
+        return None
+    if garden_memory[position] is not None:
+        return None
+    plant = Plant(name, water_need)
+    garden_memory[position] = plant
+    plant_memory.append(plant)
+    row, column = position_to_2d(position)
+    garden_2d[row][column] = plant
+    addPlantToGrid(position, name)
+    return plant
+
+def remove_plant(position):
+    if position < 0 or position >= GARDEN_SIZE:
+        return None
+    plant = garden_memory[position]
+    if plant is None:
+        return None
+    row, column = position_to_2d(position)
+    garden_memory[position] = None
+    garden_2d[row][column] = None
+    if plant in plant_memory:
+        plant_memory.remove(plant)
+    return plant
+
+def display_memory():
+    print("1D Memory:")
+    for i, plant in enumerate(garden_memory):
+        if plant is not None:
+            print(i, plant.display())
+
+def display_2d_garden():
+    print("2D Garden Memory:")
+    for row in garden_2d:
+        print([plant.name if plant else "Empty" for plant in row])
+
+print("Garden memory ready: 25 positions, 5x5 2D structure.")
 `
             },
             4: {
                 title: "Hierarchical Trees & Traversals",
                 code: `# Topic 4: Hierarchical Trees & Traversals
-# ==== WRITE YOUR CODE HERE ====
+# Garden progression tree
+# Level 1: Flowers
+# Level 2: Fruits - unlock after selling 50 Level 1 crops
+# Level 3: Vegetables - unlock after selling 50 Level 1 AND 25 Level 2 crops
+# Higher levels have higher seed prices and higher selling income.
+
+class GardenTreeNode:
+    def __init__(self, name, level):
+        self.name = name
+        self.level = level
+        self.children = []
+
+    def add_child(self, child):
+        self.children.append(child)
+
+class GardenProgressionTree:
+    def __init__(self):
+        self.root = GardenTreeNode("Garden", 0)
+        self.flowers = GardenTreeNode("Flowers", 1)
+        self.fruits = GardenTreeNode("Fruits", 2)
+        self.vegetables = GardenTreeNode("Vegetables", 3)
+        self.root.add_child(self.flowers)
+        self.flowers.add_child(self.fruits)
+        self.fruits.add_child(self.vegetables)
+
+    def preorder(self):
+        result = []
+        def visit(node):
+            result.append(node.name)
+            for child in node.children:
+                visit(child)
+        visit(self.root)
+        return result
+
+    def level_order(self):
+        queue = [self.root]
+        result = []
+        while queue:
+            node = queue.pop(0)
+            result.append(node.name)
+            queue.extend(node.children)
+        return result
+
+    def tree_text(self, level1_sold, level2_sold):
+        level2_unlocked = level1_sold >= 50
+        level3_unlocked = level1_sold >= 50 and level2_sold >= 25
+        l2 = "UNLOCKED" if level2_unlocked else f"LOCKED - {level1_sold}/50 Level 1 sold"
+        l3 = "UNLOCKED" if level3_unlocked else f"LOCKED - {level2_sold}/25 Level 2 sold"
+        return (
+            f"Garden\n"
+            f"├── Flowers (Level 1) [UNLOCKED] - Sold: {level1_sold}/50\n"
+            f"│   └── Fruits (Level 2) [{l2}] - Sold: {level2_sold}/25\n"
+            f"│       └── Vegetables (Level 3) [{l3}]"
+        )
+
+progression_tree = GardenProgressionTree()
+
+print("Garden Progression Tree ready!")
+print("Preorder:", " -> ".join(progression_tree.preorder()))
+print("Level-order:", " -> ".join(progression_tree.level_order()))
+print("Goal: sell 50 Level 1 crops to unlock Level 2.")
+print("Goal: sell 50 Level 1 and 25 Level 2 crops to unlock Level 3.")
 `
             },
             5: {
@@ -714,20 +545,30 @@ print("Resource Storage and Plant dropdown unlocked!")
             }
         };
 
+        const allSeeds = [
+            { name: "Rose", emoji: "🌹", category: "Flowers", level: 1, seedCost: 10, sellValue: 18 },
+            { name: "Sunflower", emoji: "🌻", category: "Flowers", level: 1, seedCost: 15, sellValue: 25 },
+            { name: "Sampaguita", emoji: "🌼", category: "Flowers", level: 1, seedCost: 20, sellValue: 32 },
+            { name: "Apple", emoji: "🍎", category: "Fruits", level: 2, seedCost: 40, sellValue: 65 },
+            { name: "Strawberry", emoji: "🍓", category: "Fruits", level: 2, seedCost: 50, sellValue: 80 },
+            { name: "Watermelon", emoji: "🍉", category: "Fruits", level: 2, seedCost: 70, sellValue: 110 },
+            { name: "Tomato", emoji: "🍅", category: "Vegetables", level: 3, seedCost: 80, sellValue: 130 },
+            { name: "Carrot", emoji: "🥕", category: "Vegetables", level: 3, seedCost: 90, sellValue: 150 },
+            { name: "Eggplant", emoji: "🍆", category: "Vegetables", level: 3, seedCost: 110, sellValue: 180 }
+        ];
+
         async function initPyodide() {
             if (pyodideInstance) return;
             const consoleEl = document.getElementById("output-console");
-            if (consoleEl) {
-                consoleEl.innerHTML = `<span class="text-amber-400">Loading Python...</span><br>`;
-            }
+            if (consoleEl) consoleEl.innerHTML = `<span class="text-amber-400">Loading Python...</span><br>`;
             try {
                 pyodideInstance = await loadPyodide();
-                // Bridge functions Python may call (pure display — no game rules)
                 pyodideInstance.globals.set("addPlantToGrid", addPlantToGrid);
                 pyodideInstance.globals.set("updateResources", updateResources);
                 pyodideInstance.globals.set("addPlantsToDropdown", addPlantsToDropdown);
                 pyodideInstance.globals.set("pushAction", pushAction);
                 pyodideInstance.globals.set("updateClimateQueue", updateClimateQueue);
+                pyodideInstance.globals.set("currentCoinsFromSimulator", () => currentCoins);
                 await pyodideInstance.runPythonAsync(`
                     import sys
                     from js import document
@@ -740,40 +581,50 @@ print("Resource Storage and Plant dropdown unlocked!")
                         def flush(self): pass
                     sys.stdout = Console()
                 `);
-                if (consoleEl) {
-                    consoleEl.innerHTML = `<span class="text-emerald-400">Python ready.</span><br>`;
-                }
+                if (consoleEl) consoleEl.innerHTML = `<span class="text-emerald-400">Python ready.</span><br>`;
             } catch (err) {
-                if (consoleEl) {
-                    consoleEl.innerHTML = `<span class="text-red-400">Failed to load Python: ${err.message}</span>`;
-                }
+                if (consoleEl) consoleEl.innerHTML = `<span class="text-red-400">Failed to load Python: ${err.message}</span>`;
                 throw err;
             }
         }
 
-        // ---- Pure display bridges (called from Python) ----
-
-        // updateClimateQueue(events: list of strings)
-        // Renders the FIFO climate events. Pass an empty list to clear.
         function updateClimateQueue(events) {
             const container = document.getElementById("climate-queue");
             container.innerHTML = "";
-            if (!events || !events.length) return;
+            if (!events || !events.length) {
+                const div = document.createElement("div");
+                div.className = "text-xs text-emerald-300/70";
+                div.textContent = lastWeather ? `Last weather: ${lastWeather.name} (${lastWeather.severity})` : "No weather event waiting.";
+                container.appendChild(div);
+                return;
+            }
             events.forEach(event => {
                 const div = document.createElement("div");
                 div.className = "p-3 bg-amber-950/40 border border-amber-900 rounded-xl text-xs";
-                div.innerHTML = `
-                    <div class="font-bold text-amber-400">${event}</div>
-                    <div class="text-emerald-300/80"> </div>
-                `;
+                div.textContent = event;
                 container.appendChild(div);
             });
         }
 
-        // addPlantToGrid(pos: int 0-24, name: str)
-        // Marks a grid cell as planted (display only).
+        function getSeed(name) {
+            return allSeeds.find(seed => seed.name === name);
+        }
+
+        function isUnlocked(seed) {
+            if (seed.level === 1) return true;
+            if (seed.level === 2) return soldCounts.Flowers >= 50;
+            return soldCounts.Flowers >= 50 && soldCounts.Fruits >= 25;
+        }
+
+        function calculateLevel() {
+            if (soldCounts.Flowers >= 50 && soldCounts.Fruits >= 25) return 3;
+            if (soldCounts.Flowers >= 50) return 2;
+            return 1;
+        }
+
         function addPlantToGrid(pos, name) {
             gardenPlants[pos] = name;
+            if (plantHealth[pos] === undefined) plantHealth[pos] = 100;
             renderGarden();
         }
 
@@ -783,72 +634,156 @@ print("Resource Storage and Plant dropdown unlocked!")
             for (let i = 0; i < 25; i++) {
                 const cell = document.createElement("div");
                 const plant = gardenPlants[i];
-                cell.className = "aspect-square bg-[#2a3825] rounded-xl flex items-center justify-center text-3xl border border-emerald-800 transition hover:border-emerald-400 hover:bg-[#34462e] cursor-pointer";
-                cell.title = plant ? `${plant} planted` : "Click to plant";
+                const info = plant ? getSeed(plant) : null;
+                const hp = plant ? (plantHealth[i] ?? 100) : null;
+                const status = hp === null ? "" : hp >= 70 ? "Healthy" : hp >= 40 ? "Weak" : "Critical";
+                cell.className = "aspect-square bg-[#2a3825] rounded-xl flex flex-col items-center justify-center text-2xl border border-emerald-800 transition hover:border-emerald-400 hover:bg-[#34462e] cursor-pointer p-1";
+                if (plant) {
+                    cell.innerHTML = `<div>${info?.emoji || "🌱"}</div><div class="text-[9px] font-bold text-emerald-100 truncate max-w-full">${plant}</div><div class="text-[8px] ${status === "Healthy" ? "text-emerald-300" : status === "Weak" ? "text-amber-300" : "text-red-300"}">${hp}/100 ${status}</div>`;
+                    cell.title = shovelMode ? `Shovel ${plant} - no refund` : `${plant} planted - click to harvest`;
+                } else {
+                    cell.textContent = "⬜";
+                    cell.title = shovelMode ? "Empty tile" : "Click to plant";
+                }
                 cell.setAttribute("aria-label", cell.title);
-                cell.textContent = plant ? plantOptions.find(option => option[0] === plant)?.[1] || "🌱" : "⬜";
-                cell.addEventListener("click", () => plantSeed(i));
+                cell.addEventListener("click", () => handleGardenClick(i));
                 grid.appendChild(cell);
             }
         }
 
+        function handleGardenClick(position) {
+            if (shovelMode) {
+                shovelPlant(position);
+                return;
+            }
+            if (gardenPlants[position]) {
+                harvestPlant(position);
+                return;
+            }
+            plantSeed(position);
+        }
+
         function plantSeed(position) {
             if (gardenPlants[position]) {
-                showToast("This tile is already planted.");
+                showToast("This tile is already planted. Click it to harvest or use the shovel.");
                 return;
             }
             const selectedPlant = document.getElementById("crop-selector").value;
             if (!selectedPlant) {
-                showToast("Run the resource topic to load the seed bag.");
+                showToast("Buy a seed first.");
                 return;
             }
-            const plant = plantOptions.find(option => option[0] === selectedPlant);
-            const cost = plant ? plant[2] : 0;
-            if (currentCoins < cost) {
-                showToast("Not enough coins for this seed.");
+            const count = seedInventory[selectedPlant] || 0;
+            if (count <= 0) {
+                showToast("You do not own that seed.");
                 return;
             }
+            const plant = getSeed(selectedPlant);
+            seedInventory[selectedPlant]--;
+            currentSeeds = Math.max(0, currentSeeds - 1);
             gardenPlants[position] = selectedPlant;
-            currentCoins -= cost;
-            updateCoins();
-            pushAction(`Plant ${selectedPlant}`, () => {
-                delete gardenPlants[position];
-                currentCoins += cost;
-                updateCoins();
-                renderGarden();
-            });
+            plantHealth[position] = 100;
+            pushAction(`Plant ${selectedPlant} (-1 seed)`);
+            updateResources(currentWater, currentSeeds, currentEnergy, currentHope, currentCoins);
+            refreshSeedSelectors();
             renderGarden();
             showToast(`${selectedPlant} planted.`);
         }
 
-        // updateResources(water, seeds, energy, hope, coins)
-        // Or pass a single object: updateResources({"water": n, "seeds": n, ...})
-        // No fallbacks that turn a valid 0 into a default. Caps used only for bar width.
+        function harvestPlant(position) {
+            const name = gardenPlants[position];
+            if (!name) return;
+            const seed = getSeed(name);
+            harvestedInventory[name] = (harvestedInventory[name] || 0) + 1;
+            delete gardenPlants[position];
+            delete plantHealth[position];
+            pushAction(`Harvest ${name}`);
+            renderGarden();
+            refreshSellSelector();
+            showToast(`${seed.emoji} ${name} harvested. Ready to sell.`);
+        }
+
+        function shovelPlant(position) {
+            const name = gardenPlants[position];
+            if (!name) {
+                showToast("There is no plant on this tile.");
+                return;
+            }
+            const hp = plantHealth[position] ?? 100;
+            delete gardenPlants[position];
+            delete plantHealth[position];
+            pushAction(`Shovel ${name} (removed - NO REFUND)`);
+            renderGarden();
+            showToast(`${name} removed. The seed cost was not refunded.`);
+        }
+
+        function toggleShovel() {
+            shovelMode = !shovelMode;
+            const button = document.getElementById("shovel-button");
+            button.textContent = shovelMode ? "Shovel: ON" : "Shovel: OFF";
+            button.className = shovelMode
+                ? "bg-red-800 hover:bg-red-700 border border-red-500 text-white px-3 py-2 rounded-xl text-xs font-bold"
+                : "bg-[#2a3825] hover:bg-[#34462e] border border-emerald-800 text-emerald-200 px-3 py-2 rounded-xl text-xs font-bold";
+            renderGarden();
+            showToast(shovelMode ? "Shovel mode ON. Removed plants are not refunded." : "Shovel mode OFF.");
+        }
+
+        async function generateWeatherFromSimulator() {
+            try {
+                await initPyodide();
+                document.getElementById("topic-selector").value = "2";
+                loadTopic();
+                await pyodideInstance.runPythonAsync(topicTemplates[2].code);
+                const result = await pyodideInstance.runPythonAsync(`climate_queue.next_weather()`);
+                if (result) {
+                    const event = {
+                        name: result.name,
+                        severity: result.severity,
+                        water: result.water_effect,
+                        energy: result.energy_effect,
+                        health: result.plant_health_effect
+                    };
+                    lastWeather = event;
+                    applyWeatherToPlants(event.health);
+                    updateClimateQueue([`${event.name} [${event.severity}] | Water ${event.water >= 0 ? "+" : ""}${event.water} | Energy ${event.energy >= 0 ? "+" : ""}${event.energy} | Plant Health ${event.health >= 0 ? "+" : ""}${event.health}`]);
+                    pushAction(`Weather: ${event.name} (${event.severity})`);
+                    showToast(`${event.name}: ${event.health >= 0 ? "+" : ""}${event.health} plant health`);
+                }
+            } catch (err) {
+                document.getElementById("output-console").innerHTML += `<span class="text-red-400">Weather Error: ${err.message}</span><br>`;
+            }
+        }
+
+        function applyWeatherToPlants(healthEffect) {
+            Object.keys(gardenPlants).forEach(pos => {
+                const key = Number(pos);
+                plantHealth[key] = Math.max(0, Math.min(100, (plantHealth[key] ?? 100) + healthEffect));
+            });
+            renderGarden();
+        }
+
         function updateResources(water, seeds, energy, hope, coins) {
             if (typeof water === "object" && water !== null) {
                 const args = water;
-                water = args.water !== undefined ? args.water : 0;
-                seeds = args.seeds !== undefined ? args.seeds : 0;
-                energy = args.energy !== undefined ? args.energy : 0;
-                hope = args.hope !== undefined ? args.hope : 0;
-                coins = args.coins !== undefined ? args.coins : 0;
-            } else {
-                water = water !== undefined ? water : 0;
-                seeds = seeds !== undefined ? seeds : 0;
-                energy = energy !== undefined ? energy : 0;
-                hope = hope !== undefined ? hope : 0;
-                coins = coins !== undefined ? coins : 0;
+                water = args.water ?? 0;
+                seeds = args.seeds ?? 0;
+                energy = args.energy ?? 0;
+                hope = args.hope ?? 0;
+                coins = args.coins ?? 0;
             }
-            const waterMax = 200, seedsMax = 100, energyMax = 120, hopeMax = 100;
-            document.getElementById("water-text").innerText = `${water} / ${waterMax} L`;
-            document.getElementById("water-bar").style.width = `${Math.min(100, (water / waterMax) * 100)}%`;
-            document.getElementById("seeds-text").innerText = `${seeds} / ${seedsMax}`;
-            document.getElementById("seeds-bar").style.width = `${Math.min(100, (seeds / seedsMax) * 100)}%`;
-            document.getElementById("energy-text").innerText = `${energy} / ${energyMax} Wh`;
-            document.getElementById("energy-bar").style.width = `${Math.min(100, (energy / energyMax) * 100)}%`;
-            document.getElementById("hope-text").innerText = `${hope} / ${hopeMax}`;
-            document.getElementById("hope-bar").style.width = `${Math.min(100, (hope / hopeMax) * 100)}%`;
-            currentCoins = coins;
+            currentWater = water ?? currentWater;
+            currentSeeds = seeds ?? currentSeeds;
+            currentEnergy = energy ?? currentEnergy;
+            currentHope = hope ?? currentHope;
+            currentCoins = coins ?? currentCoins;
+            document.getElementById("water-text").innerText = `${currentWater} / 200 L`;
+            document.getElementById("water-bar").style.width = `${Math.min(100, Math.max(0, (currentWater / 200) * 100))}%`;
+            document.getElementById("seeds-text").innerText = `${currentSeeds} / 100`;
+            document.getElementById("seeds-bar").style.width = `${Math.min(100, Math.max(0, (currentSeeds / 100) * 100))}%`;
+            document.getElementById("energy-text").innerText = `${currentEnergy} / 120 Wh`;
+            document.getElementById("energy-bar").style.width = `${Math.min(100, Math.max(0, (currentEnergy / 120) * 100))}%`;
+            document.getElementById("hope-text").innerText = `${currentHope} / 100`;
+            document.getElementById("hope-bar").style.width = `${Math.min(100, Math.max(0, (currentHope / 100) * 100))}%`;
             updateCoins();
         }
 
@@ -856,25 +791,255 @@ print("Resource Storage and Plant dropdown unlocked!")
             document.getElementById("coins-text").innerText = `${currentCoins} Coins`;
         }
 
-        // addPlantsToDropdown(plants: list of [name, emoji, cost])
         function addPlantsToDropdown(plants) {
-            const select = document.getElementById("crop-selector");
-            plantOptions = plants || [];
-            select.innerHTML = "";
-            if (!plants) return;
-            plants.forEach(([name, emoji, cost]) => {
-                const option = document.createElement("option");
-                option.value = name;
-                option.textContent = `${emoji} ${name} (${cost}c)`;
-                select.appendChild(option);
+            if (plants && plants.length) {
+                plants.forEach(([name, emoji, cost]) => {
+                    if (!getSeed(name)) {
+                        allSeeds.push({ name, emoji, category: "Flowers", level: 1, seedCost: cost, sellValue: cost * 2 });
+                    }
+                });
+            }
+            refreshSeedSelectors();
+        }
+
+        function refreshSeedSelectors(preferredCrop = null, preferredShop = null) {
+            const crop = document.getElementById("crop-selector");
+            const shop = document.getElementById("shop-selector");
+
+            // IMPORTANT:
+            // Rebuilding a <select> resets its value to the first option.
+            // Remember the player's current choice before rebuilding.
+            const savedCrop = preferredCrop ?? crop.value;
+            const savedShop = preferredShop ?? shop.value;
+
+            crop.innerHTML = "";
+            shop.innerHTML = "";
+
+            const unlockedSeeds = allSeeds.filter(isUnlocked);
+
+            unlockedSeeds.forEach(seed => {
+                const count = seedInventory[seed.name] || 0;
+
+                const cropOpt = document.createElement("option");
+                cropOpt.value = seed.name;
+                cropOpt.textContent = `${seed.emoji} ${seed.name} x${count}`;
+                crop.appendChild(cropOpt);
+
+                const shopOpt = document.createElement("option");
+                shopOpt.value = seed.name;
+                shopOpt.textContent =
+                    `${seed.emoji} ${seed.name} - Buy ${seed.seedCost}c / Sell ${seed.sellValue}c`;
+                shop.appendChild(shopOpt);
+            });
+
+            // Restore the player's selected Seed Bag item.
+            if (
+                savedCrop &&
+                [...crop.options].some(option => option.value === savedCrop)
+            ) {
+                crop.value = savedCrop;
+            }
+
+            // Restore the player's selected Shop item.
+            if (
+                savedShop &&
+                [...shop.options].some(option => option.value === savedShop)
+            ) {
+                shop.value = savedShop;
+            }
+
+            refreshSellSelector();
+        }
+
+        function refreshSellSelector() {
+            const sell = document.getElementById("sell-selector");
+            sell.innerHTML = "";
+            const items = Object.keys(harvestedInventory).filter(name => harvestedInventory[name] > 0 && isUnlocked(getSeed(name)));
+            if (!items.length) {
+                const opt = document.createElement("option");
+                opt.textContent = "No harvested crops";
+                opt.value = "";
+                sell.appendChild(opt);
+                return;
+            }
+            items.forEach(name => {
+                const seed = getSeed(name);
+                const opt = document.createElement("option");
+                opt.value = name;
+                opt.textContent = `${seed.emoji} ${name} x${harvestedInventory[name]} - ${seed.sellValue}c each`;
+                sell.appendChild(opt);
             });
         }
 
-        // pushAction(action: str)
-        // Appends a display label to the Action History panel (no JS undo logic).
-        function pushAction(action, undoCallback = null) {
-            displayActionHistory.push({ label: action, undo: undoCallback });
-            if (displayActionHistory.length > 8) displayActionHistory.shift();
+        function buySelectedSeed() {
+            const shopSelector = document.getElementById("shop-selector");
+            const cropSelector = document.getElementById("crop-selector");
+
+            const name = shopSelector.value;
+            const seed = getSeed(name);
+
+            if (!seed) return;
+
+            if (!isUnlocked(seed)) {
+                showToast("That seed level is locked.");
+                return;
+            }
+
+            if (currentCoins < seed.seedCost) {
+                showToast("Not enough coins to buy this seed.");
+                return;
+            }
+
+            // Remember both selections before the selectors are refreshed.
+            const previousShopSelection = name;
+            const previousCropSelection = cropSelector.value;
+
+            currentCoins -= seed.seedCost;
+            seedInventory[name] = (seedInventory[name] || 0) + 1;
+            currentSeeds += 1;
+
+            pushAction(`Buy ${name} Seed (-${seed.seedCost} coins)`);
+
+            updateResources(
+                currentWater,
+                currentSeeds,
+                currentEnergy,
+                currentHope,
+                currentCoins
+            );
+
+            // Refresh WITHOUT jumping back to Rose.
+            refreshSeedSelectors(
+                previousCropSelection,
+                previousShopSelection
+            );
+
+            showToast(`${name} seed purchased.`);
+        }
+
+        function sellSelectedCrop() {
+            const name = document.getElementById("sell-selector").value;
+            const seed = getSeed(name);
+            if (!seed || !(harvestedInventory[name] > 0)) {
+                showToast("No harvested crop to sell.");
+                return;
+            }
+            harvestedInventory[name]--;
+            currentCoins += seed.sellValue;
+            if (seed.category === "Flowers") soldCounts.Flowers++;
+            if (seed.category === "Fruits") soldCounts.Fruits++;
+            const previousLevel = currentLevel;
+            currentLevel = calculateLevel();
+            pushAction(`Sell ${name} (+${seed.sellValue} coins)`);
+            updateResources(currentWater, currentSeeds, currentEnergy, currentHope, currentCoins);
+            refreshSeedSelectors();
+            refreshSellSelector();
+            updateProgressionUI();
+            if (currentLevel > previousLevel) {
+                showToast(`Level ${currentLevel} unlocked! New seeds are available.`);
+                pushAction(`LEVEL ${currentLevel} UNLOCKED`);
+            } else {
+                showToast(`${name} sold for ${seed.sellValue} coins.`);
+            }
+        }
+
+        function updateProgressionUI() {
+            currentLevel = calculateLevel();
+
+            const flowersUnlocked = true;
+            const fruitsUnlocked = soldCounts.Flowers >= 50;
+            const vegetablesUnlocked =
+                fruitsUnlocked && soldCounts.Fruits >= 25;
+
+            document.getElementById("progress-summary").innerHTML = `
+                <div class="font-bold text-emerald-200">
+                    Current Level: ${currentLevel}
+                </div>
+                <div>🌸 Flowers: ${soldCounts.Flowers}/50 sold</div>
+                <div>🍎 Fruits: ${soldCounts.Fruits}/25 sold</div>
+                <div>🥕 Vegetables:
+                    ${vegetablesUnlocked ? "UNLOCKED" : "LOCKED"}
+                </div>
+            `;
+
+            const tree = document.getElementById("hierarchy-tree");
+
+            // The tree is deliberately visible inside the lower section
+            // of the Action History panel.
+            tree.innerHTML = `
+                <div class="text-emerald-100 font-bold mb-2 text-sm">
+                    🌳 GARDEN HIERARCHICAL TREE
+                </div>
+
+                <div class="font-mono text-[11px] leading-6">
+                    <div class="text-emerald-200 font-bold">
+                        🌱 GARDEN
+                    </div>
+
+                    <div class="ml-2">
+                        ├── 🌸
+                        <span class="font-bold">FLOWERS</span>
+                        <span class="text-emerald-300">
+                            [LEVEL 1 ✓]
+                        </span>
+                    </div>
+
+                    <div class="ml-6 text-emerald-200">
+                        └── Sold:
+                        ${soldCounts.Flowers}/50
+                    </div>
+
+                    <div class="ml-2">
+                        ├── 🍎
+                        <span class="font-bold">FRUITS</span>
+                        <span class="${fruitsUnlocked
+                            ? "text-emerald-300"
+                            : "text-amber-300"}">
+                            [${fruitsUnlocked
+                                ? "LEVEL 2 ✓"
+                                : "LEVEL 2 🔒"}]
+                        </span>
+                    </div>
+
+                    <div class="ml-6 text-emerald-200">
+                        └── Sold:
+                        ${soldCounts.Fruits}/25
+                    </div>
+
+                    <div class="ml-2">
+                        └── 🥕
+                        <span class="font-bold">VEGETABLES</span>
+                        <span class="${vegetablesUnlocked
+                            ? "text-emerald-300"
+                            : "text-amber-300"}">
+                            [${vegetablesUnlocked
+                                ? "LEVEL 3 ✓"
+                                : "LEVEL 3 🔒"}]
+                        </span>
+                    </div>
+                </div>
+
+                <div class="mt-3 pt-2 border-t border-emerald-800/60">
+                    <div class="text-[9px] uppercase tracking-widest text-emerald-500 font-bold mb-1">
+                        Traversals
+                    </div>
+
+                    <div class="text-[10px] text-emerald-200">
+                        Preorder:
+                        Garden → Flowers → Fruits → Vegetables
+                    </div>
+
+                    <div class="text-[10px] text-emerald-200">
+                        Level-order:
+                        Garden → Flowers → Fruits → Vegetables
+                    </div>
+                </div>
+            `;
+        }
+
+        function pushAction(action) {
+            displayActionHistory.push({ label: action });
+            if (displayActionHistory.length > 10) displayActionHistory.shift();
             renderActionStack();
         }
 
@@ -887,18 +1052,6 @@ print("Resource Storage and Plant dropdown unlocked!")
                 div.textContent = `→ ${action.label}`;
                 container.appendChild(div);
             });
-        }
-
-        // UI-only: removes the last displayed label. Your Python owns the real stack.
-        function triggerUndo() {
-            if (displayActionHistory.length > 0) {
-                const action = displayActionHistory.pop();
-                if (action.undo) action.undo();
-                renderActionStack();
-                showToast(`Undid: ${action.label}`);
-            } else {
-                showToast("Stack is empty.");
-            }
         }
 
         function showToast(msg) {
@@ -916,6 +1069,8 @@ print("Resource Storage and Plant dropdown unlocked!")
                 await initPyodide();
                 const code = document.getElementById("code-editor").value.trim();
                 await pyodideInstance.runPythonAsync(code);
+                updateProgressionUI();
+                refreshSeedSelectors();
             } catch (err) {
                 consoleEl.innerHTML += `<span class="text-red-400">Error: ${err.message}</span>`;
             }
@@ -938,10 +1093,14 @@ print("Resource Storage and Plant dropdown unlocked!")
         window.onload = () => {
             document.getElementById("version-badge").textContent = "v" + APP_VERSION;
             lucide.createIcons();
+            updateResources(200, 90, 110, 80, 990);
+            seedInventory = { Rose: 5, Sunflower: 3, Sampaguita: 2 };
+            currentSeeds = 10;
+            refreshSeedSelectors();
             renderGarden();
             renderActionStack();
-            addPlantsToDropdown(plantOptions);
-            updateResources(200, 90, 110, 80, 990);
+            updateProgressionUI();
+            updateClimateQueue([]);
 
             const select = document.getElementById("topic-selector");
             Object.keys(topicTemplates).forEach(k => {
@@ -952,7 +1111,6 @@ print("Resource Storage and Plant dropdown unlocked!")
             });
             loadTopic();
             switchTab("game");
-            // Pre-load Pyodide in the background so the first Run is faster
             initPyodide().catch(() => {});
         };
     </script>
