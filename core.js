@@ -606,3 +606,791 @@ const topicTemplates = window.topicTemplates || (window.topicTemplates = {});
             initPyodide().catch(() => {});
         };
 
+// ============================================================
+// PART 5: PLANT SELECTION MODE
+// ============================================================
+
+let bstPlantSelectionMode = false;
+
+
+// ============================================================
+// TOGGLE PART 5 SELECTION MODE
+// ============================================================
+
+function toggleBSTSelectionMode() {
+
+    bstPlantSelectionMode =
+        !bstPlantSelectionMode;
+
+
+    const button =
+        document.getElementById(
+            "bst-select-mode-button"
+        );
+
+
+    if (button) {
+
+        if (bstPlantSelectionMode) {
+
+            button.textContent =
+                "Selection: ON";
+
+            button.className =
+                "flex-1 min-w-[120px] " +
+                "bg-cyan-800 " +
+                "hover:bg-cyan-700 " +
+                "border border-cyan-500 " +
+                "text-cyan-100 " +
+                "px-3 py-2 " +
+                "rounded-xl " +
+                "text-xs font-bold";
+
+        } else {
+
+            button.textContent =
+                "Select Plant";
+
+            button.className =
+                "flex-1 min-w-[120px] " +
+                "bg-emerald-800 " +
+                "hover:bg-emerald-700 " +
+                "border border-emerald-600 " +
+                "text-emerald-100 " +
+                "px-3 py-2 " +
+                "rounded-xl " +
+                "text-xs font-bold";
+        }
+    }
+
+
+    showToast(
+        bstPlantSelectionMode
+            ? "Selection mode ON. Click a planted cell."
+            : "Selection mode OFF."
+    );
+}
+
+
+// ============================================================
+// SELECT PLANT WITHOUT HARVESTING
+// ============================================================
+
+function handleBSTPlantSelection(
+    event
+) {
+
+    if (!bstPlantSelectionMode) {
+        return;
+    }
+
+
+    const grid =
+        document.getElementById(
+            "garden-grid"
+        );
+
+
+    if (!grid) {
+        return;
+    }
+
+
+    if (
+        !grid.contains(
+            event.target
+        )
+    ) {
+        return;
+    }
+
+
+    const cell =
+        event.target.closest(
+            "#garden-grid > div"
+        );
+
+
+    if (!cell) {
+        return;
+    }
+
+
+    const cells =
+        [...grid.children];
+
+
+    const position =
+        cells.indexOf(cell);
+
+
+    if (position < 0) {
+        return;
+    }
+
+
+    // Prevent Part 1-4 from treating
+    // this click as harvest.
+    event.preventDefault();
+    event.stopPropagation();
+
+
+    if (!gardenPlants[position]) {
+
+        showToast(
+            "There is no plant on this tile."
+        );
+
+        return;
+    }
+
+
+    selectBSTGardenPlant(
+        position
+    );
+}
+
+
+// ============================================================
+// HARVEST SELECTED PART 5 PLANT
+// ============================================================
+
+function harvestBSTSelectedPlant() {
+
+    const position =
+        Number(
+            window.selectedGardenPosition
+        );
+
+
+    if (
+        !Number.isInteger(position) ||
+        position < 0 ||
+        position >= 25
+    ) {
+
+        showToast(
+            "Select a plant first."
+        );
+
+        return;
+    }
+
+
+    const plant =
+        gardenPlants[position];
+
+
+    if (!plant) {
+
+        showToast(
+            "There is no plant selected."
+        );
+
+        return;
+    }
+
+
+    // --------------------------------------------------------
+    // IMPORTANT:
+    // Use the game's ORIGINAL harvest function.
+    // --------------------------------------------------------
+
+    if (
+        typeof harvestPlant === "function"
+    ) {
+
+        harvestPlant(
+            position
+        );
+
+    } else if (
+        typeof harvestCrop === "function"
+    ) {
+
+        harvestCrop(
+            position
+        );
+
+    } else {
+
+        // Safe fallback.
+        delete gardenPlants[position];
+        delete plantHealth[position];
+
+        if (
+            typeof renderGarden === "function"
+        ) {
+            renderGarden();
+        }
+    }
+
+
+    // Clear Part 5 selection.
+    window.selectedGardenPosition =
+        -1;
+
+
+    const name =
+        document.getElementById(
+            "bst-plant-name"
+        );
+
+
+    if (name) {
+
+        name.textContent =
+            "No plant selected";
+    }
+
+
+    const status =
+        document.getElementById(
+            "bst-status"
+        );
+
+
+    if (status) {
+
+        status.textContent =
+            "WAITING FOR PLANT";
+    }
+
+
+    showToast(
+        `${plant} harvested.`
+    );
+}
+
+
+// ============================================================
+// PART 5 BUTTONS
+// ============================================================
+
+function initBSTPlantControls() {
+
+    const selectButton =
+        document.getElementById(
+            "bst-select-mode-button"
+        );
+
+
+    const harvestButton =
+        document.getElementById(
+            "bst-harvest-button"
+        );
+
+
+    selectButton?.addEventListener(
+        "click",
+        toggleBSTSelectionMode
+    );
+
+
+    harvestButton?.addEventListener(
+        "click",
+        harvestBSTSelectedPlant
+    );
+}
+
+
+// ============================================================
+// INITIALIZE
+// ============================================================
+
+document.addEventListener(
+    "DOMContentLoaded",
+    () => {
+
+        initBSTPlantControls();
+
+    }
+);
+
+
+// ============================================================
+// CAPTURE PLANT CLICK BEFORE PART 1-4
+// ============================================================
+
+// ============================================================
+// PART 5: SAFE PLANT SELECTION
+// ============================================================
+
+// Reuse the shared state rather than redeclaring the variable here.
+// Its value is tracked in the browser window for compatibility with
+// existing Part 5 logic and any code that may access it globally.
+window.bstPlantSelectionMode ??= false;
+
+
+// ============================================================
+// TOGGLE SELECTION MODE
+// ============================================================
+
+function toggleBSTSelectionMode() {
+
+    bstPlantSelectionMode =
+        !bstPlantSelectionMode;
+
+
+    const button =
+        document.getElementById(
+            "bst-select-mode-button"
+        );
+
+
+    if (button) {
+
+        if (bstPlantSelectionMode) {
+
+            button.textContent =
+                "Selection: ON";
+
+            button.className =
+                "flex-1 min-w-[120px] " +
+                "bg-cyan-800 " +
+                "hover:bg-cyan-700 " +
+                "border border-cyan-500 " +
+                "text-cyan-100 " +
+                "px-3 py-2 rounded-xl " +
+                "text-xs font-bold";
+
+        } else {
+
+            button.textContent =
+                "Select Plant";
+
+            button.className =
+                "flex-1 min-w-[120px] " +
+                "bg-emerald-800 " +
+                "hover:bg-emerald-700 " +
+                "border border-emerald-600 " +
+                "text-emerald-100 " +
+                "px-3 py-2 rounded-xl " +
+                "text-xs font-bold";
+        }
+    }
+
+
+    showToast(
+        bstPlantSelectionMode
+            ? "Selection mode ON. Click a plant."
+            : "Selection mode OFF."
+    );
+}
+
+
+// ============================================================
+// CAPTURE GARDEN CLICK BEFORE OTHER GAME FUNCTIONS
+// ============================================================
+
+document.addEventListener(
+    "click",
+    function(event) {
+
+        // Part 5 selection mode is OFF.
+        // Let Parts 1-4 work normally.
+        if (!bstPlantSelectionMode) {
+            return;
+        }
+
+
+        const grid =
+            document.getElementById(
+                "garden-grid"
+            );
+
+
+        if (!grid) {
+            return;
+        }
+
+
+        // Check whether click happened
+        // inside the garden.
+        if (
+            !grid.contains(
+                event.target
+            )
+        ) {
+            return;
+        }
+
+
+        const cell =
+            event.target.closest(
+                "#garden-grid > div"
+            );
+
+
+        if (!cell) {
+            return;
+        }
+
+
+        const cells =
+            Array.from(
+                grid.children
+            );
+
+
+        const position =
+            cells.indexOf(cell);
+
+
+        if (
+            position < 0 ||
+            position >= 25
+        ) {
+            return;
+        }
+
+
+        // ----------------------------------------------------
+        // CRITICAL:
+        // Stop the original garden click.
+        // This prevents automatic harvesting.
+        // ----------------------------------------------------
+
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+
+
+        // ----------------------------------------------------
+        // CHECK IF THERE IS A PLANT
+        // ----------------------------------------------------
+
+        if (
+            !gardenPlants ||
+            !gardenPlants[position]
+        ) {
+
+            showToast(
+                "There is no plant on this tile."
+            );
+
+            return;
+        }
+
+
+        // ----------------------------------------------------
+        // SELECT REAL GARDEN PLANT
+        // ----------------------------------------------------
+
+        selectBSTGardenPlant(
+            position
+        );
+
+
+        // ----------------------------------------------------
+        // VISUAL HIGHLIGHT
+        // ----------------------------------------------------
+
+        cells.forEach(
+            item => {
+
+                item.classList.remove(
+                    "ring-2",
+                    "ring-cyan-400",
+                    "ring-offset-2",
+                    "ring-offset-[#192218]"
+                );
+
+            }
+        );
+
+
+        cell.classList.add(
+            "ring-2",
+            "ring-cyan-400",
+            "ring-offset-2",
+            "ring-offset-[#192218]"
+        );
+
+
+    },
+    true
+);
+
+
+// ============================================================
+// PART 5 SELECTION FUNCTION
+// ============================================================
+
+function selectBSTGardenPlant(
+    position
+) {
+
+    const pos =
+        Number(position);
+
+
+    if (
+        !Number.isInteger(pos) ||
+        pos < 0 ||
+        pos >= 25
+    ) {
+        return;
+    }
+
+
+    if (
+        !gardenPlants ||
+        !gardenPlants[pos]
+    ) {
+
+        showToast(
+            "There is no plant on this tile."
+        );
+
+        return;
+    }
+
+
+    // Save selected position.
+    window.selectedGardenPosition =
+        pos;
+
+
+    const plant =
+        getBSTGardenPlant(pos);
+
+
+    if (!plant) {
+        return;
+    }
+
+
+    // Update Part 5 information.
+    updateBSTSelectionUI(
+        plant
+    );
+
+
+    // Also show the current plant
+    // in the BST sanctuary.
+    if (
+        typeof updateBSTSanctuary === "function"
+    ) {
+
+        updateBSTSanctuary(
+            {
+                position: plant.position,
+                name: plant.name,
+                health: plant.health,
+                stage: "stem",
+                trait: "normal",
+                diseased: false,
+                mutated: 0,
+                disease_spread: 0,
+                node_count: 1,
+                message: "Plant selected and synchronized."
+            },
+            pos
+        );
+    }
+
+
+    showToast(
+        `${plant.name} selected for Part 5.`
+    );
+}
+
+
+// ============================================================
+// UPDATE SELECTION DISPLAY
+// ============================================================
+
+function updateBSTSelectionUI(
+    plant
+) {
+
+    if (!plant) {
+        return;
+    }
+
+
+    const name =
+        document.getElementById(
+            "bst-plant-name"
+        );
+
+
+    const position =
+        document.getElementById(
+            "bst-plant-position"
+        );
+
+
+    const health =
+        document.getElementById(
+            "bst-plant-health"
+        );
+
+
+    const status =
+        document.getElementById(
+            "bst-status"
+        );
+
+
+    if (name) {
+
+        name.textContent =
+            plant.name;
+    }
+
+
+    if (position) {
+
+        position.textContent =
+            `Grid ${plant.position + 1}`;
+    }
+
+
+    if (health) {
+
+        health.textContent =
+            `${plant.health}%`;
+    }
+
+
+    if (status) {
+
+        status.textContent =
+            "PLANT SELECTED";
+
+        status.className =
+            "px-3 py-1.5 rounded-full " +
+            "bg-cyan-950/60 " +
+            "border border-cyan-700 " +
+            "text-[9px] font-bold " +
+            "text-cyan-300";
+    }
+}
+
+
+// ============================================================
+// HARVEST SELECTED PLANT
+// ============================================================
+
+function harvestBSTSelectedPlant() {
+
+    const position =
+        Number(
+            window.selectedGardenPosition
+        );
+
+
+    if (
+        !Number.isInteger(position) ||
+        position < 0 ||
+        position >= 25
+    ) {
+
+        showToast(
+            "Select a plant first."
+        );
+
+        return;
+    }
+
+
+    const plant =
+        gardenPlants[position];
+
+
+    if (!plant) {
+
+        showToast(
+            "There is no selected plant."
+        );
+
+        return;
+    }
+
+
+    // Try the existing game's harvest function.
+    if (
+        typeof harvestPlant === "function"
+    ) {
+
+        harvestPlant(position);
+
+    } else if (
+        typeof harvestCrop === "function"
+    ) {
+
+        harvestCrop(position);
+
+    } else {
+
+        // Fallback only if the original
+        // harvest function does not exist.
+        gardenPlants[position] = null;
+        plantHealth[position] = 0;
+
+        if (
+            typeof renderGarden === "function"
+        ) {
+            renderGarden();
+        }
+    }
+
+
+    // Clear selection.
+    window.selectedGardenPosition =
+        -1;
+
+
+    showToast(
+        `${plant} harvested.`
+    );
+}
+
+
+// ============================================================
+// BUTTON INITIALIZATION
+// ============================================================
+
+function initBSTPlantControls() {
+
+    const selectButton =
+        document.getElementById(
+            "bst-select-mode-button"
+        );
+
+
+    const harvestButton =
+        document.getElementById(
+            "bst-harvest-button"
+        );
+
+
+    if (selectButton) {
+
+        selectButton.onclick =
+            toggleBSTSelectionMode;
+    }
+
+
+    if (harvestButton) {
+
+        harvestButton.onclick =
+            harvestBSTSelectedPlant;
+    }
+}
+
+
+// ============================================================
+// INITIALIZE AFTER PAGE LOAD
+// ============================================================
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function() {
+
+        initBSTPlantControls();
+
+    }
+);
