@@ -479,13 +479,226 @@ print("Goal: sell 50 Level 1 and 25 Level 2 crops to unlock Level 3.")
             5: {
                 title: "Binary Search Trees (BST) & Node Mutation",
                 code: `# Topic 5: Binary Search Trees (BST) & Node Mutation
-# ==== WRITE YOUR CODE HERE ====
+# Uses the existing JavaScript garden through Pyodide.
+import json
+import random
+
+class PlantNode:
+    def __init__(self, health, position, name):
+        self.health = health
+        self.position = position
+        self.name = name
+        self.left = None
+        self.right = None
+
+class PlantBST:
+    def __init__(self):
+        self.root = None
+        self.count = 0
+
+    def insert(self, health, position, name):
+        node = PlantNode(health, position, name)
+        if self.root is None:
+            self.root = node
+            self.count += 1
+            return
+        current = self.root
+        while True:
+            if (health, position) < (current.health, current.position):
+                if current.left is None:
+                    current.left = node
+                    self.count += 1
+                    return
+                current = current.left
+            else:
+                if current.right is None:
+                    current.right = node
+                    self.count += 1
+                    return
+                current = current.right
+
+    def inorder(self):
+        result = []
+        def visit(node):
+            if node is None:
+                return
+            visit(node.left)
+            result.append((node.health, node.position, node.name))
+            visit(node.right)
+        visit(self.root)
+        return result
+
+    def search_position(self, position):
+        def visit(node):
+            if node is None:
+                return None
+            if node.position == position:
+                return node
+            return visit(node.left) or visit(node.right)
+        return visit(self.root)
+
+def build_garden_bst():
+    plants = json.loads(getGardenSnapshot())
+    tree = PlantBST()
+    for plant in plants:
+        tree.insert(plant["health"], plant["position"], plant["name"])
+    return tree, plants
+
+
+def growth_stage(health):
+    if health < 25:
+        return "Stem"
+    if health < 50:
+        return "Leaf"
+    if health < 75:
+        return "Flower"
+    return "Fruit"
+
+
+def mutate_plant(position, health_change):
+    changed = applyPlantMutation(position, health_change)
+    if not changed:
+        print("Plant no longer exists in that garden tile.")
+    return changed
+
+
+def run_growth_mutation():
+    tree, plants = build_garden_bst()
+    if not plants:
+        print("Plant a seed in the Interactive Sanctuary first.")
+        return
+
+    print("\n=== GARDEN BST ===")
+    print("Plants indexed:", tree.count)
+    print("Inorder traversal: lowest to highest health")
+    for health, position, name in tree.inorder():
+        print(f"Tile {position}: {name} | Health {health} | Stage {growth_stage(health)}")
+
+    target = random.choice(plants)
+    position = target["position"]
+    name = target["name"]
+    old_health = target["health"]
+    change = random.choice([5, 10, 15, -5])
+    mutate_plant(position, change)
+    new_health = max(0, min(100, old_health + change))
+    print(f"\nMutation: {name} at tile {position}")
+    print(f"Health: {old_health} -> {new_health}")
+    print("Growth stage:", growth_stage(new_health))
+
+    if new_health < 40:
+        print("\nDisease risk detected. Nearby plants may be affected.")
+        neighbors = [
+            position - 5,
+            position + 5,
+            position - 1 if position % 5 != 0 else -1,
+            position + 1 if position % 5 != 4 else -1
+        ]
+        existing_positions = {plant["position"] for plant in plants}
+        for neighbor in neighbors:
+            if neighbor in existing_positions and random.random() < 0.5:
+                mutate_plant(neighbor, -10)
+                print(f"Disease spread to tile {neighbor}: -10 health")
+
+    if growth_stage(new_health) == "Fruit" and random.random() < 0.05:
+        print("\n*** RARE GOLDEN FRUIT MUTATION! ***")
+        print("A golden-fruit discovery was recorded!")
+    print("\nGarden updated successfully.")
+
+run_growth_mutation()
 `
             },
             6: {
                 title: "Hash Tables, Collisions, & Rehashing",
                 code: `# Topic 6: Hash Tables, Collisions, & Rehashing
-# ==== WRITE YOUR CODE HERE ====
+# A hash-table index of the simulator's existing seed catalog.
+import json
+
+class HashTable:
+    def __init__(self, capacity=8):
+        self.capacity = capacity
+        self.buckets = [[] for _ in range(capacity)]
+        self.size = 0
+        self.collisions = 0
+        self.rehash_count = 0
+
+    def hash_function(self, key):
+        return sum(ord(char) for char in key.lower()) % self.capacity
+
+    def load_factor(self):
+        return self.size / self.capacity
+
+    def search(self, key):
+        index = self.hash_function(key)
+        for stored_key, value in self.buckets[index]:
+            if stored_key == key.lower():
+                return value
+        return None
+
+    def insert(self, key, value):
+        key = key.lower()
+        index = self.hash_function(key)
+        for i, (stored_key, _) in enumerate(self.buckets[index]):
+            if stored_key == key:
+                self.buckets[index][i] = (key, value)
+                return
+        if self.buckets[index]:
+            self.collisions += 1
+            print(f"Collision: '{key}' at bucket {index}")
+        self.buckets[index].append((key, value))
+        self.size += 1
+        if self.load_factor() > 0.75:
+            self.rehash()
+
+    def rehash(self):
+        old_buckets = self.buckets
+        self.capacity *= 2
+        self.buckets = [[] for _ in range(self.capacity)]
+        self.size = 0
+        self.rehash_count += 1
+        print(f"\nRehashing: new capacity = {self.capacity}")
+        for bucket in old_buckets:
+            for key, value in bucket:
+                self.insert_without_resize(key, value)
+
+    def insert_without_resize(self, key, value):
+        index = self.hash_function(key)
+        self.buckets[index].append((key, value))
+        self.size += 1
+
+    def display(self):
+        print("\n=== HASH TABLE ===")
+        for index, bucket in enumerate(self.buckets):
+            if bucket:
+                entries = " -> ".join(
+                    f"{key}: {value['seedCost']} coins" for key, value in bucket
+                )
+                print(f"Bucket {index}: {entries}")
+            else:
+                print(f"Bucket {index}: Empty")
+
+catalog = json.loads(getSeedCatalog())
+seed_table = HashTable(capacity=8)
+for seed in catalog:
+    seed_table.insert(seed["name"], seed)
+
+print("\n=== SEED LOOKUP ===")
+for query in ["Rose", "Apple", "Carrot"]:
+    result = seed_table.search(query)
+    if result:
+        print(f"{result['name']}: Buy {result['seedCost']} coins, Sell {result['sellValue']} coins")
+    else:
+        print(f"{query}: Not found")
+
+seed_table.display()
+print("\n=== HASH TABLE STATISTICS ===")
+print("Entries:", seed_table.size)
+print("Capacity:", seed_table.capacity)
+print("Load factor:", round(seed_table.load_factor(), 2))
+print("Collisions:", seed_table.collisions)
+print("Rehash operations:", seed_table.rehash_count)
+print("Average lookup: O(1)")
+print("Worst-case lookup: O(n)")
+print("Rehashing: O(n) per resize")
 `
             },
             7: {
@@ -569,6 +782,9 @@ print("Resource Storage and Plant dropdown unlocked!")
                 pyodideInstance.globals.set("pushAction", pushAction);
                 pyodideInstance.globals.set("updateClimateQueue", updateClimateQueue);
                 pyodideInstance.globals.set("currentCoinsFromSimulator", () => currentCoins);
+                pyodideInstance.globals.set("getGardenSnapshot", getGardenSnapshot);
+                pyodideInstance.globals.set("applyPlantMutation", applyPlantMutation);
+                pyodideInstance.globals.set("getSeedCatalog", getSeedCatalog);
                 await pyodideInstance.runPythonAsync(`
                     import sys
                     from js import document
@@ -604,6 +820,38 @@ print("Resource Storage and Plant dropdown unlocked!")
                 div.textContent = event;
                 container.appendChild(div);
             });
+        }
+
+        function getGardenSnapshot() {
+            return JSON.stringify(
+                Object.keys(gardenPlants).map(position => ({
+                    position: Number(position),
+                    name: gardenPlants[position],
+                    health: plantHealth[position] ?? 100
+                }))
+            );
+        }
+
+        function applyPlantMutation(position, healthDelta) {
+            if (gardenPlants[position] === undefined) return false;
+            plantHealth[position] = Math.max(
+                0,
+                Math.min(100, (plantHealth[position] ?? 100) + healthDelta)
+            );
+            renderGarden();
+            return true;
+        }
+
+        function getSeedCatalog() {
+            return JSON.stringify(
+                allSeeds.map(seed => ({
+                    name: seed.name,
+                    category: seed.category,
+                    level: seed.level,
+                    seedCost: seed.seedCost,
+                    sellValue: seed.sellValue
+                }))
+            );
         }
 
         function getSeed(name) {
