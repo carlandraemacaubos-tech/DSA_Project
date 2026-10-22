@@ -153,10 +153,31 @@
                 <div id="climate-queue" class="space-y-3 text-sm"></div>
             </div>
             <div id="stack-panel" class="glass-panel rounded-2xl p-4 flex-1 flex flex-col">
-                <h3 class="font-bold text-emerald-400 mb-3 flex items-center gap-2">
-                    <i data-lucide="history" class="w-4 h-4"></i> Action History (Stack)
-                </h3>
-                <div id="action-stack" class="space-y-2 text-sm overflow-auto max-h-32"></div>
+                <div class="flex items-start justify-between gap-2 mb-3">
+                    <div>
+                        <h3 class="font-bold text-emerald-200 flex items-center gap-2">
+                            <i data-lucide="history" class="w-4 h-4 text-emerald-400"></i> Garden History
+                        </h3>
+                        <p class="text-[10px] text-emerald-400/70 mt-1">Search your recent game actions</p>
+                    </div>
+                    <span id="history-count" class="text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-950 border border-emerald-800 text-emerald-300">0 records</span>
+                </div>
+                <div class="relative mb-2">
+                    <i data-lucide="search" class="w-4 h-4 text-emerald-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                    <input id="history-search" type="search" oninput="renderActionStack()" placeholder="Search plant, buy, sell, weather..." aria-label="Search garden history" class="w-full bg-[#10180f] border border-emerald-800/80 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 rounded-xl py-2.5 pl-9 pr-3 text-xs text-emerald-50 placeholder:text-emerald-700 outline-none transition" />
+                </div>
+                <div class="flex gap-2 mb-3">
+                    <select id="history-filter" onchange="renderActionStack()" aria-label="Filter history actions" class="min-w-0 flex-1 bg-[#10180f] border border-emerald-800/80 rounded-lg px-2 py-2 text-[11px] text-emerald-100 outline-none">
+                        <option value="all">All actions</option>
+                        <option value="plant">Planting</option>
+                        <option value="buy">Purchases</option>
+                        <option value="sell">Sales</option>
+                        <option value="harvest">Harvest / shovel</option>
+                        <option value="weather">Weather</option>
+                    </select>
+                    <button onclick="clearHistorySearch()" class="px-3 py-2 rounded-lg text-[11px] font-bold border border-emerald-800 text-emerald-300 hover:bg-emerald-950/70 transition">Clear</button>
+                </div>
+                <div id="action-stack" class="space-y-2 text-sm overflow-auto max-h-56 pr-1"></div>
                 <div class="mt-3 pt-3 border-t border-emerald-800/50">
                     <div id="hierarchy-tree"
                          class="bg-[#11180f] border border-emerald-700 rounded-xl p-3 min-h-[210px] text-xs leading-6 shadow-inner">
@@ -174,7 +195,7 @@
         // PATCH: bug fix or small tweak with no new feature
         // Use 0.x.y while in development; move to 1.0.0 once all 11 topics are complete.
         // =====================================================================
-        const APP_VERSION = "0.3.0";
+        const APP_VERSION = "0.4.0";
 
         let pyodideInstance = null;
         let gardenPlants = {};
@@ -477,34 +498,31 @@ print("Goal: sell 50 Level 1 and 25 Level 2 crops to unlock Level 3.")
 `
             },
             5: {
-                title: "Binary Search Trees (BST) & Node Mutation",
-                code: `# Topic 5: Binary Search Trees (BST) & Node Mutation
-# Uses the existing JavaScript garden through Pyodide.
+                title: "BST History Search (Chronological Search)",
+                code: `# Topic 5: Binary Search Tree (BST) for Garden History
+# Search recent actions using the shared Garden History search bar.
 import json
-import random
 
-class PlantNode:
-    def __init__(self, health, position, name):
-        self.health = health
-        self.position = position
-        self.name = name
+class HistoryNode:
+    def __init__(self, record):
+        self.record = record
         self.left = None
         self.right = None
 
-class PlantBST:
+class HistoryBST:
     def __init__(self):
         self.root = None
         self.count = 0
 
-    def insert(self, health, position, name):
-        node = PlantNode(health, position, name)
+    def insert(self, record):
+        node = HistoryNode(record)
         if self.root is None:
             self.root = node
-            self.count += 1
+            self.count = 1
             return
         current = self.root
         while True:
-            if (health, position) < (current.health, current.position):
+            if record["id"] < current.record["id"]:
                 if current.left is None:
                     current.left = node
                     self.count += 1
@@ -518,102 +536,44 @@ class PlantBST:
                 current = current.right
 
     def inorder(self):
-        result = []
+        results = []
         def visit(node):
             if node is None:
                 return
             visit(node.left)
-            result.append((node.health, node.position, node.name))
+            results.append(node.record)
             visit(node.right)
         visit(self.root)
-        return result
+        return results
 
-    def search_position(self, position):
-        def visit(node):
-            if node is None:
-                return None
-            if node.position == position:
-                return node
-            return visit(node.left) or visit(node.right)
-        return visit(self.root)
+records = json.loads(getActionHistorySnapshot())
+query = getHistorySearchQuery().strip().lower()
+tree = HistoryBST()
+for record in records:
+    tree.insert(record)
 
-def build_garden_bst():
-    plants = json.loads(getGardenSnapshot())
-    tree = PlantBST()
-    for plant in plants:
-        tree.insert(plant["health"], plant["position"], plant["name"])
-    return tree, plants
-
-
-def growth_stage(health):
-    if health < 25:
-        return "Stem"
-    if health < 50:
-        return "Leaf"
-    if health < 75:
-        return "Flower"
-    return "Fruit"
-
-
-def mutate_plant(position, health_change):
-    changed = applyPlantMutation(position, health_change)
-    if not changed:
-        print("Plant no longer exists in that garden tile.")
-    return changed
-
-
-def run_growth_mutation():
-    tree, plants = build_garden_bst()
-    if not plants:
-        print("Plant a seed in the Interactive Sanctuary first.")
-        return
-
-    print("\n=== GARDEN BST ===")
-    print("Plants indexed:", tree.count)
-    print("Inorder traversal: lowest to highest health")
-    for health, position, name in tree.inorder():
-        print(f"Tile {position}: {name} | Health {health} | Stage {growth_stage(health)}")
-
-    target = random.choice(plants)
-    position = target["position"]
-    name = target["name"]
-    old_health = target["health"]
-    change = random.choice([5, 10, 15, -5])
-    mutate_plant(position, change)
-    new_health = max(0, min(100, old_health + change))
-    print(f"\nMutation: {name} at tile {position}")
-    print(f"Health: {old_health} -> {new_health}")
-    print("Growth stage:", growth_stage(new_health))
-
-    if new_health < 40:
-        print("\nDisease risk detected. Nearby plants may be affected.")
-        neighbors = [
-            position - 5,
-            position + 5,
-            position - 1 if position % 5 != 0 else -1,
-            position + 1 if position % 5 != 4 else -1
-        ]
-        existing_positions = {plant["position"] for plant in plants}
-        for neighbor in neighbors:
-            if neighbor in existing_positions and random.random() < 0.5:
-                mutate_plant(neighbor, -10)
-                print(f"Disease spread to tile {neighbor}: -10 health")
-
-    if growth_stage(new_health) == "Fruit" and random.random() < 0.05:
-        print("\n*** RARE GOLDEN FRUIT MUTATION! ***")
-        print("A golden-fruit discovery was recorded!")
-    print("\nGarden updated successfully.")
-
-run_growth_mutation()
+print("=== PART 5: BST GARDEN HISTORY ===")
+print("Records indexed:", tree.count)
+print("Traversal: oldest to newest (inorder by action ID)")
+matched = [record for record in tree.inorder()
+           if not query or query in record["label"].lower()]
+if matched:
+    for record in matched:
+        print(f'#{record["id"]} [{record["time"]}] {record["label"]}')
+else:
+    print("No history records match:", query)
+print("Search query:", query if query else "(all history)")
+print("BST insertion/search scan concept: average O(log n) for balanced trees; worst O(n).")
 `
             },
             6: {
-                title: "Hash Tables, Collisions, & Rehashing",
-                code: `# Topic 6: Hash Tables, Collisions, & Rehashing
-# A hash-table index of the simulator's existing seed catalog.
+                title: "Hash Table History Search (Keyword Index)",
+                code: `# Topic 6: Hash Table for Fast Garden History Keyword Search
+# Uses the same history records and search bar as Part 5.
 import json
+import re
 
-class HashTable:
+class HistoryHashTable:
     def __init__(self, capacity=8):
         self.capacity = capacity
         self.buckets = [[] for _ in range(capacity)]
@@ -622,31 +582,21 @@ class HashTable:
         self.rehash_count = 0
 
     def hash_function(self, key):
-        return sum(ord(char) for char in key.lower()) % self.capacity
+        return sum(ord(char) for char in key) % self.capacity
 
-    def load_factor(self):
-        return self.size / self.capacity
-
-    def search(self, key):
-        index = self.hash_function(key)
-        for stored_key, value in self.buckets[index]:
-            if stored_key == key.lower():
-                return value
-        return None
-
-    def insert(self, key, value):
+    def insert(self, key, record):
         key = key.lower()
         index = self.hash_function(key)
-        for i, (stored_key, _) in enumerate(self.buckets[index]):
+        for stored_key, records in self.buckets[index]:
             if stored_key == key:
-                self.buckets[index][i] = (key, value)
+                if record["id"] not in [item["id"] for item in records]:
+                    records.append(record)
                 return
         if self.buckets[index]:
             self.collisions += 1
-            print(f"Collision: '{key}' at bucket {index}")
-        self.buckets[index].append((key, value))
+        self.buckets[index].append((key, [record]))
         self.size += 1
-        if self.load_factor() > 0.75:
+        if self.size / self.capacity > 0.75:
             self.rehash()
 
     def rehash(self):
@@ -655,50 +605,60 @@ class HashTable:
         self.buckets = [[] for _ in range(self.capacity)]
         self.size = 0
         self.rehash_count += 1
-        print(f"\nRehashing: new capacity = {self.capacity}")
         for bucket in old_buckets:
-            for key, value in bucket:
-                self.insert_without_resize(key, value)
+            for key, records in bucket:
+                for record in records:
+                    self.insert_without_resize(key, record)
 
-    def insert_without_resize(self, key, value):
+    def insert_without_resize(self, key, record):
         index = self.hash_function(key)
-        self.buckets[index].append((key, value))
+        for stored_key, records in self.buckets[index]:
+            if stored_key == key:
+                if record["id"] not in [item["id"] for item in records]:
+                    records.append(record)
+                return
+        self.buckets[index].append((key, [record]))
         self.size += 1
 
-    def display(self):
-        print("\n=== HASH TABLE ===")
-        for index, bucket in enumerate(self.buckets):
-            if bucket:
-                entries = " -> ".join(
-                    f"{key}: {value['seedCost']} coins" for key, value in bucket
-                )
-                print(f"Bucket {index}: {entries}")
-            else:
-                print(f"Bucket {index}: Empty")
+    def search(self, key):
+        index = self.hash_function(key.lower())
+        for stored_key, records in self.buckets[index]:
+            if stored_key == key.lower():
+                return records
+        return []
 
-catalog = json.loads(getSeedCatalog())
-seed_table = HashTable(capacity=8)
-for seed in catalog:
-    seed_table.insert(seed["name"], seed)
+records = json.loads(getActionHistorySnapshot())
+query = getHistorySearchQuery().strip().lower()
+index = HistoryHashTable()
+for record in records:
+    words = set(re.findall(r"[a-z0-9]+", record["label"].lower()))
+    for word in words:
+        index.insert(word, record)
 
-print("\n=== SEED LOOKUP ===")
-for query in ["Rose", "Apple", "Carrot"]:
-    result = seed_table.search(query)
-    if result:
-        print(f"{result['name']}: Buy {result['seedCost']} coins, Sell {result['sellValue']} coins")
+print("=== PART 6: HASH TABLE HISTORY SEARCH ===")
+print("History records:", len(records))
+print("Unique keyword entries:", index.size)
+print("Search query:", query if query else "(all history)")
+if query:
+    words = set(re.findall(r"[a-z0-9]+", query))
+    lists = [index.search(word) for word in words]
+    if lists and all(lists):
+        common_ids = set(item["id"] for item in lists[0])
+        for items in lists[1:]:
+            common_ids &= {item["id"] for item in items}
+        matches = [record for record in records if record["id"] in common_ids]
     else:
-        print(f"{query}: Not found")
-
-seed_table.display()
-print("\n=== HASH TABLE STATISTICS ===")
-print("Entries:", seed_table.size)
-print("Capacity:", seed_table.capacity)
-print("Load factor:", round(seed_table.load_factor(), 2))
-print("Collisions:", seed_table.collisions)
-print("Rehash operations:", seed_table.rehash_count)
-print("Average lookup: O(1)")
-print("Worst-case lookup: O(n)")
-print("Rehashing: O(n) per resize")
+        matches = []
+else:
+    matches = records[:]
+if matches:
+    for record in matches:
+        print(f'#{record["id"]} [{record["time"]}] {record["label"]}')
+else:
+    print("No history records match all query keywords.")
+print("Hash collisions:", index.collisions)
+print("Rehash operations:", index.rehash_count)
+print("Average keyword lookup: O(1); worst case: O(n).")
 `
             },
             7: {
@@ -770,6 +730,18 @@ print("Resource Storage and Plant dropdown unlocked!")
             { name: "Eggplant", emoji: "🍆", category: "Vegetables", level: 3, seedCost: 110, sellValue: 180 }
         ];
 
+        function getActionHistorySnapshot() {
+            return JSON.stringify(displayActionHistory.map(item => ({
+                id: item.id,
+                label: item.label,
+                time: item.time
+            })));
+        }
+
+        function getHistorySearchQuery() {
+            return document.getElementById("history-search")?.value || "";
+        }
+
         async function initPyodide() {
             if (pyodideInstance) return;
             const consoleEl = document.getElementById("output-console");
@@ -785,6 +757,8 @@ print("Resource Storage and Plant dropdown unlocked!")
                 pyodideInstance.globals.set("getGardenSnapshot", getGardenSnapshot);
                 pyodideInstance.globals.set("applyPlantMutation", applyPlantMutation);
                 pyodideInstance.globals.set("getSeedCatalog", getSeedCatalog);
+                pyodideInstance.globals.set("getActionHistorySnapshot", getActionHistorySnapshot);
+                pyodideInstance.globals.set("getHistorySearchQuery", getHistorySearchQuery);
                 await pyodideInstance.runPythonAsync(`
                     import sys
                     from js import document
@@ -1285,19 +1259,67 @@ print("Resource Storage and Plant dropdown unlocked!")
             `;
         }
 
+        let nextHistoryId = 1;
+
         function pushAction(action) {
-            displayActionHistory.push({ label: action });
-            if (displayActionHistory.length > 10) displayActionHistory.shift();
+            const now = new Date();
+            displayActionHistory.push({
+                id: nextHistoryId++,
+                label: String(action),
+                time: now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+            });
+            // Keep a useful recent history without allowing the panel to grow forever.
+            if (displayActionHistory.length > 100) displayActionHistory.shift();
+            renderActionStack();
+        }
+
+        function clearHistorySearch() {
+            const search = document.getElementById("history-search");
+            const filter = document.getElementById("history-filter");
+            if (search) search.value = "";
+            if (filter) filter.value = "all";
             renderActionStack();
         }
 
         function renderActionStack() {
             const container = document.getElementById("action-stack");
+            const count = document.getElementById("history-count");
+            if (!container) return;
+            const query = (document.getElementById("history-search")?.value || "").trim().toLowerCase();
+            const filter = document.getElementById("history-filter")?.value || "all";
+            const filtered = displayActionHistory.filter(action => {
+                const label = action.label.toLowerCase();
+                const matchesText = !query || label.includes(query);
+                const matchesType = filter === "all" || label.includes(filter) ||
+                    (filter === "plant" && label.includes("planted")) ||
+                    (filter === "harvest" && (label.includes("harvest") || label.includes("shovel") || label.includes("remove")));
+                return matchesText && matchesType;
+            });
+            if (count) count.textContent = `${filtered.length} / ${displayActionHistory.length} records`;
             container.innerHTML = "";
-            [...displayActionHistory].reverse().forEach(action => {
+            if (!filtered.length) {
+                const empty = document.createElement("div");
+                empty.className = "rounded-xl border border-dashed border-emerald-900/80 p-4 text-center text-[11px] text-emerald-500/80";
+                empty.textContent = displayActionHistory.length ? "No matching actions found." : "Your actions will appear here as you play.";
+                container.appendChild(empty);
+                return;
+            }
+            [...filtered].reverse().forEach(action => {
                 const div = document.createElement("div");
-                div.className = "bg-emerald-950/60 border-l-2 border-amber-500 px-3 py-2 rounded text-xs text-emerald-100";
-                div.textContent = `→ ${action.label}`;
+                div.className = "group bg-[#111a10] hover:bg-emerald-950/60 border border-emerald-900/70 hover:border-emerald-700 px-3 py-2.5 rounded-xl text-xs text-emerald-100 transition";
+                const top = document.createElement("div");
+                top.className = "flex items-center justify-between gap-2 mb-1";
+                const id = document.createElement("span");
+                id.className = "text-[9px] font-bold text-emerald-500";
+                id.textContent = `ACTION #${action.id}`;
+                const time = document.createElement("span");
+                time.className = "text-[9px] text-emerald-600";
+                time.textContent = action.time || "";
+                const label = document.createElement("div");
+                label.className = "leading-5 break-words";
+                label.textContent = action.label;
+                top.append(id, time);
+                div.append(top, label);
                 container.appendChild(div);
             });
         }
@@ -1358,6 +1380,7 @@ print("Resource Storage and Plant dropdown unlocked!")
                 select.appendChild(opt);
             });
             loadTopic();
+            renderActionStack();
             switchTab("game");
             initPyodide().catch(() => {});
         };
